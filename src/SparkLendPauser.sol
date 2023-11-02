@@ -41,7 +41,7 @@ contract SparkLendPauser is ISparkLendPauser {
     /**********************************************************************************************/
 
     modifier onlyWards {
-        require(wards[msg.sender] == 1, "SparkLendPauser/not-authorized");
+        require(wards[msg.sender] == 1, "SparkLendPauser/not-ward");
         _;
     }
 
@@ -51,7 +51,7 @@ contract SparkLendPauser is ISparkLendPauser {
     }
 
     /**********************************************************************************************/
-    /*** Auth Functions                                                                         ***/
+    /*** Wards Functions                                                                        ***/
     /**********************************************************************************************/
 
     function deny(address usr) external override onlyWards {
@@ -70,15 +70,16 @@ contract SparkLendPauser is ISparkLendPauser {
         emit SetAuthority(oldAuthority, authority_);
     }
 
-    function resetPause() external onlyWards {
-        canPause = true;
+    function setCanPause(bool canPause_) external onlyWards {
+        canPause = canPause_;
     }
 
     /**********************************************************************************************/
-    /*** Chief Functions                                                                        ***/
+    /*** Auth Functions                                                                         ***/
     /**********************************************************************************************/
 
     function pause() external auth {
+        require(canPause, "SparkLendPauser/pause-not-allowed");
         require(
             AuthorityLike(authority).canCall(msg.sender, address(this), msg.sig),
             "SparkLendPauser/not-authorized"
