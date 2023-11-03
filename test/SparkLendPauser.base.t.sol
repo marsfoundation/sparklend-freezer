@@ -3,91 +3,135 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import { SparkLendPauser } from "../src/SparkLendPauser.sol";
+import { SparkLendFreezer } from "../src/SparkLendFreezer.sol";
 
-contract ConfiguratorMock {
-    function setPause(bool paused) external {}
-}
+import { ConfiguratorMock, PoolMock } from "./Mocks.sol";
 
-contract SparkLendPauserUnitTestBase is Test {
+contract SparkLendFreezerUnitTests is Test {
 
     address public authority;
     address public configurator;
+    address public pool;
     address public ward;
 
-    SparkLendPauser public pauser;
+    SparkLendFreezer public freezer;
 
     function setUp() public {
         authority = makeAddr("authority");
         ward      = makeAddr("ward");
 
         configurator = address(new ConfiguratorMock());
-        pauser       = new SparkLendPauser(configurator, authority);
+        pool         = address(new PoolMock());
+        freezer       = new SparkLendFreezer(configurator, pool, authority);
 
-        pauser.rely(ward);
-        pauser.deny(address(this));
+        freezer.rely(ward);
+        freezer.deny(address(this));
     }
 
+    /********************/
+    /*** `deny` Tests ***/
+    /********************/
+
     function test_deny_no_auth() public {
-        vm.expectRevert("SparkLendPauser/not-ward");
-        pauser.deny(ward);
+        vm.expectRevert("SparkLendFreezer/not-ward");
+        freezer.deny(ward);
     }
 
     function test_deny() public {
-        assertEq(pauser.wards(ward), 1);
+        assertEq(freezer.wards(ward), 1);
 
         vm.prank(ward);
-        pauser.deny(ward);
+        freezer.deny(ward);
 
-        assertEq(pauser.wards(ward), 0);
+        assertEq(freezer.wards(ward), 0);
     }
 
+    /********************/
+    /*** `rely` Tests ***/
+    /********************/
+
     function test_rely_no_auth() public {
-        vm.expectRevert("SparkLendPauser/not-ward");
-        pauser.rely(makeAddr("new ward"));
+        vm.expectRevert("SparkLendFreezer/not-ward");
+        freezer.rely(makeAddr("new ward"));
     }
 
     function test_rely() public {
         address newWard = makeAddr("new ward");
-        assertEq(pauser.wards(newWard), 0);
+        assertEq(freezer.wards(newWard), 0);
 
         vm.prank(ward);
-        pauser.rely(newWard);
+        freezer.rely(newWard);
 
-        assertEq(pauser.wards(ward), 1);
+        assertEq(freezer.wards(ward), 1);
     }
 
+    /****************************/
+    /*** `setAuthority` Tests ***/
+    /****************************/
+
     function test_setAuthority_no_auth() public {
-        vm.expectRevert("SparkLendPauser/not-ward");
-        pauser.setAuthority(makeAddr("new authority"));
+        vm.expectRevert("SparkLendFreezer/not-ward");
+        freezer.setAuthority(makeAddr("new authority"));
     }
 
     function test_setAuthority() public {
         address newAuthority = makeAddr("new authority");
-        assertEq(pauser.authority(), authority);
+        assertEq(freezer.authority(), authority);
 
         vm.prank(ward);
-        pauser.setAuthority(newAuthority);
+        freezer.setAuthority(newAuthority);
 
-        assertEq(pauser.authority(), newAuthority);
+        assertEq(freezer.authority(), newAuthority);
     }
 
-    function test_resetPause_no_auth() public {
-        vm.expectRevert("SparkLendPauser/not-ward");
-        pauser.setCanPause(false);
+    /**************************/
+    /*** `setCanFreeze` Tests ***/
+    /**************************/
+
+    function test_setCanFreeze_no_auth() public {
+        vm.expectRevert("SparkLendFreezer/not-ward");
+        freezer.setCanFreeze(false);
     }
 
-    function test_setCanPause() public {
-        assertEq(pauser.canPause(), true);
+    function test_setCanFreeze() public {
+        assertEq(freezer.canFreeze(), true);
 
         vm.startPrank(ward);
-        pauser.setCanPause(false);
+        freezer.setCanFreeze(false);
 
-        assertEq(pauser.canPause(), false);
+        assertEq(freezer.canFreeze(), false);
 
-        pauser.setCanPause(true);
+        freezer.setCanFreeze(true);
 
-        assertEq(pauser.canPause(), true);
+        assertEq(freezer.canFreeze(), true);
     }
 
+    // /*********************/
+    // /*** `pause` Tests ***/
+    // /*********************/
+
+    // function test_freeze_noAuth() public {
+    //     assertEq(freezer.canPause(), true);
+
+    //     vm.startPrank(ward);
+    //     freezer.setCanFreeze(false);
+
+    //     assertEq(freezer.canPause(), false);
+
+    //     freezer.setCanFreeze(true);
+
+    //     assertEq(freezer.canPause(), true);
+    // }
+
+    // function test_pause_cannotPause() public {
+    //     vm.startPrank(ward);
+    //     freezer.setCanFreeze(false);
+
+    //     vm.expectRevert("SparkLendFreezer/pause-not-allowed");
+
+    //     freezer.setCanFreeze(false);
+    // }
+
 }
+
+
