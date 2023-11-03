@@ -11,7 +11,7 @@ contract AuthorityMock {
         callAllowed[src][dst][sig] = allowed;
     }
 
-    function _setAllCanCall(bool allCanCall_) public {
+    function __setAllCanCall(bool allCanCall_) public {
         _allCanCall = allCanCall_;
     }
 
