@@ -29,10 +29,18 @@ contract ConfiguratorMock {
 
 contract PoolMock {
 
-    function getReservesList() external pure returns (address[] memory list) {
-        list = new address[](1);
+    address[] internal assets;
 
-        list[0] = address(0x1);
+    function getReservesList() external view returns (address[] memory list) {
+        list = new address[](assets.length);
+
+        for (uint256 i; i < assets.length; ++i) {
+            list[i] = assets[i];
+        }
+    }
+
+    function __addAsset(address asset) public {
+        assets.push(asset);
     }
 
 }

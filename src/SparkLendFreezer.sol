@@ -47,13 +47,8 @@ contract SparkLendFreezer is ISparkLendFreezer {
     /*** Modifiers                                                                              ***/
     /**********************************************************************************************/
 
-    modifier onlyWards {
-        require(wards[msg.sender] == 1, "SparkLendFreezer/not-ward");
-        _;
-    }
-
     modifier auth {
-        require(isAuthorized(msg.sender, msg.sig), "SparkLendFreezer/not-authorized");
+        require(wards[msg.sender] == 1, "SparkLendFreezer/not-authorized");
         _;
     }
 
@@ -61,23 +56,23 @@ contract SparkLendFreezer is ISparkLendFreezer {
     /*** Wards Functions                                                                        ***/
     /**********************************************************************************************/
 
-    function deny(address usr) external override onlyWards {
+    function deny(address usr) external override auth {
         wards[usr] = 0;
         emit Deny(usr);
     }
 
-    function rely(address usr) external override onlyWards {
+    function rely(address usr) external override auth {
         wards[usr] = 1;
         emit Rely(usr);
     }
 
-    function setAuthority(address authority_) external onlyWards {
+    function setAuthority(address authority_) external auth {
         address oldAuthority = authority;
         authority = authority_;
         emit SetAuthority(oldAuthority, authority_);
     }
 
-    function setCanFreeze(bool canFreeze_) external onlyWards {
+    function setCanFreeze(bool canFreeze_) external auth {
         canFreeze = canFreeze_;
     }
 
@@ -85,8 +80,12 @@ contract SparkLendFreezer is ISparkLendFreezer {
     /*** Auth Functions                                                                         ***/
     /**********************************************************************************************/
 
-    function freeze() external auth {
-        require(canFreeze, "SparkLendFreezer/pause-not-allowed");
+    function freeze() external {
+        require(canFreeze, "SparkLendFreezer/freeze-not-allowed");
+        require(
+            AuthorityLike(authority).canCall(msg.sender, address(this), msg.sig),
+            "SparkLendFreezer/cannot-call"
+        );
 
         address[] memory reserves = PoolLike(pool).getReservesList();
 
@@ -94,6 +93,8 @@ contract SparkLendFreezer is ISparkLendFreezer {
             if (reserves[i] == address(0)) continue;
             PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserves[i], true);
         }
+
+        canFreeze = false;
     }
 
     /**********************************************************************************************/
