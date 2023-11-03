@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+pragma solidity ^0.8.13;
 
 import { ISparkLendFreezer } from "src/interfaces/ISparkLendFreezer.sol";
-
-interface ProxyLike {
-    function exec(address target, bytes calldata args) external payable returns (bytes memory out);
-}
 
 interface AuthorityLike {
     function canCall(address src, address dst, bytes4 sig) external view returns (bool);
