@@ -29,6 +29,20 @@ contract SparkLendFreezerUnitTests is Test {
         freezer.deny(address(this));
     }
 
+    /***************************/
+    /*** `constructor` Tests ***/
+    /***************************/
+
+    function test_constructor() public {
+        freezer = new SparkLendFreezer(configurator, pool, address(authority));
+
+        assertEq(freezer.poolConfigurator(),   configurator);
+        assertEq(freezer.pool(),               pool);
+        assertEq(freezer.authority(),          address(authority));
+        assertEq(freezer.canFreeze(),          true);
+        assertEq(freezer.wards(address(this)), 1);
+    }
+
     /********************/
     /*** `deny` Tests ***/
     /********************/

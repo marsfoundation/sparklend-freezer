@@ -97,20 +97,4 @@ contract SparkLendFreezer is ISparkLendFreezer {
         canFreeze = false;
     }
 
-    /**********************************************************************************************/
-    /*** Helper Functions                                                                       ***/
-    /**********************************************************************************************/
-
-    function isAuthorized(address src, bytes4 sig) internal view returns (bool) {
-        if (src == address(this)) {
-            return true;
-        } else if (wards[src] == 1) {
-            return true;
-        } else if (authority == address(0)) {
-            return false;
-        } else {
-            return AuthorityLike(authority).canCall(src, address(this), sig);
-        }
-    }
-
 }
