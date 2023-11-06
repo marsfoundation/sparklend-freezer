@@ -31,7 +31,7 @@ contract SparkLendFreezerUnitTestBase is Test {
 
 }
 
-contract SparkLendFreezerConstructorTests is SparkLendFreezerUnitTestBase {
+contract ConstructorTests is SparkLendFreezerUnitTestBase {
 
     function test_constructor() public {
         freezer = new SparkLendFreezer(configurator, pool, address(authority));
@@ -39,13 +39,12 @@ contract SparkLendFreezerConstructorTests is SparkLendFreezerUnitTestBase {
         assertEq(freezer.poolConfigurator(),   configurator);
         assertEq(freezer.pool(),               pool);
         assertEq(freezer.authority(),          address(authority));
-        assertEq(freezer.canFreeze(),          true);
         assertEq(freezer.wards(address(this)), 1);
     }
 
 }
 
-contract SparkLendFreezerDenyTests is SparkLendFreezerUnitTestBase {
+contract DenyTests is SparkLendFreezerUnitTestBase {
 
     function test_deny_no_auth() public {
         vm.expectRevert("SparkLendFreezer/not-authorized");
@@ -63,7 +62,7 @@ contract SparkLendFreezerDenyTests is SparkLendFreezerUnitTestBase {
 
 }
 
-contract SparkLendFreezerRelyTests is SparkLendFreezerUnitTestBase {
+contract RelyTests is SparkLendFreezerUnitTestBase {
 
     function test_rely_no_auth() public {
         vm.expectRevert("SparkLendFreezer/not-authorized");
@@ -82,7 +81,7 @@ contract SparkLendFreezerRelyTests is SparkLendFreezerUnitTestBase {
 
 }
 
-contract SparkLendFreezerSetAuthorityTests is SparkLendFreezerUnitTestBase {
+contract SetAuthorityTests is SparkLendFreezerUnitTestBase {
 
     function test_setAuthority_no_auth() public {
         vm.expectRevert("SparkLendFreezer/not-authorized");
@@ -101,62 +100,10 @@ contract SparkLendFreezerSetAuthorityTests is SparkLendFreezerUnitTestBase {
 
 }
 
-contract SparkLendFreezerSetCanFreezeTests is SparkLendFreezerUnitTestBase {
-
-    /****************************/
-    /*** `setCanFreeze` Tests ***/
-    /****************************/
-
-    function test_setCanFreeze_no_auth() public {
-        vm.expectRevert("SparkLendFreezer/not-authorized");
-        freezer.setCanFreeze(false);
-    }
-
-    function test_setCanFreeze() public {
-        assertEq(freezer.canFreeze(), true);
-
-        vm.startPrank(ward);
-        freezer.setCanFreeze(false);
-
-        assertEq(freezer.canFreeze(), false);
-
-        freezer.setCanFreeze(true);
-
-        assertEq(freezer.canFreeze(), true);
-    }
-
-}
-
-contract SparkLendFreezerFreezeAllMarketsTests is SparkLendFreezerUnitTestBase {
-
-    /**********************/
-    /*** `freeze` Tests ***/
-    /**********************/
-
-    function test_freezeAllMarkets_notAllowed() public {
-        vm.prank(ward);
-        freezer.setCanFreeze(false);
-
-        vm.expectRevert("SparkLendFreezer/freeze-not-allowed");
-        freezer.freezeAllMarkets();
-    }
+contract FreezeAllMarketsTests is SparkLendFreezerUnitTestBase {
 
     function test_freezeAllMarkets_noAuth() public {
         vm.expectRevert("SparkLendFreezer/cannot-call");
-        freezer.freezeAllMarkets();
-    }
-
-    function test_freezeAllMarkets_cannotCallTwice() public {
-        authority.__setCanCall(
-            address(this),
-            address(freezer),
-            freezer.freezeAllMarkets.selector,
-            true
-        );
-
-        freezer.freezeAllMarkets();
-
-        vm.expectRevert("SparkLendFreezer/freeze-not-allowed");
         freezer.freezeAllMarkets();
     }
 
@@ -177,14 +124,35 @@ contract SparkLendFreezerFreezeAllMarketsTests is SparkLendFreezerUnitTestBase {
         bytes4 poolSig   = PoolMock.getReservesList.selector;
         bytes4 configSig = ConfiguratorMock.setReserveFreeze.selector;
 
-        assertEq(freezer.canFreeze(), true);
-
         vm.expectCall(pool,         abi.encodePacked(poolSig));
         vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset1, true)));
         vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset2, true)));
         freezer.freezeAllMarkets();
+    }
 
-        assertEq(freezer.canFreeze(), false);
+}
+
+contract FreezeMarketTests is SparkLendFreezerUnitTestBase {
+
+    address reserve = makeAddr("reserve");
+
+    function test_freezeMarket_noAuth() public {
+        vm.expectRevert("SparkLendFreezer/cannot-call");
+        freezer.freezeMarket(reserve);
+    }
+
+    function test_freezeMarket() public {
+        authority.__setCanCall(
+            address(this),
+            address(freezer),
+            freezer.freezeMarket.selector,
+            true
+        );
+
+        bytes4 configSig = ConfiguratorMock.setReserveFreeze.selector;
+
+        vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(reserve, true)));
+        freezer.freezeMarket(reserve);
     }
 
 }

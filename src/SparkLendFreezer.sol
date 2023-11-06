@@ -26,8 +26,6 @@ contract SparkLendFreezer is ISparkLendFreezer {
 
     address public authority;
 
-    bool public canFreeze;
-
     mapping (address => uint256) public override wards;
 
     constructor(address poolConfigurator_, address pool_, address authority_) {
@@ -36,7 +34,6 @@ contract SparkLendFreezer is ISparkLendFreezer {
         authority        = authority_;
 
         wards[msg.sender] = 1;
-        canFreeze = true;
         emit Rely(msg.sender);
     }
 
@@ -49,8 +46,7 @@ contract SparkLendFreezer is ISparkLendFreezer {
         _;
     }
 
-    modifier freezeCheck {
-        require(canFreeze, "SparkLendFreezer/freeze-not-allowed");
+    modifier canCall {
         require(
             AuthorityLike(authority).canCall(msg.sender, address(this), msg.sig),
             "SparkLendFreezer/cannot-call"
@@ -78,29 +74,22 @@ contract SparkLendFreezer is ISparkLendFreezer {
         emit SetAuthority(oldAuthority, authority_);
     }
 
-    function setCanFreeze(bool canFreeze_) external auth {
-        canFreeze = canFreeze_;
-    }
-
     /**********************************************************************************************/
     /*** Auth Functions                                                                         ***/
     /**********************************************************************************************/
 
-    function freezeAllMarkets() external freezeCheck {
+    function freezeAllMarkets() external canCall {
         address[] memory reserves = PoolLike(pool).getReservesList();
 
         for (uint256 i = 0; i < reserves.length; i++) {
             if (reserves[i] == address(0)) continue;
             PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserves[i], true);
         }
-
-        canFreeze = false;
     }
 
-    function freezeMarket(address reserve) external freezeCheck {
+    function freezeMarket(address reserve) external canCall {
         PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserve, true);
-
-        canFreeze = false;
     }
 
 }
+
