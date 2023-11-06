@@ -49,6 +49,15 @@ contract SparkLendFreezer is ISparkLendFreezer {
         _;
     }
 
+    modifier freezeCheck {
+        require(canFreeze, "SparkLendFreezer/freeze-not-allowed");
+        require(
+            AuthorityLike(authority).canCall(msg.sender, address(this), msg.sig),
+            "SparkLendFreezer/cannot-call"
+        );
+        _;
+    }
+
     /**********************************************************************************************/
     /*** Wards Functions                                                                        ***/
     /**********************************************************************************************/
@@ -77,19 +86,19 @@ contract SparkLendFreezer is ISparkLendFreezer {
     /*** Auth Functions                                                                         ***/
     /**********************************************************************************************/
 
-    function freeze() external {
-        require(canFreeze, "SparkLendFreezer/freeze-not-allowed");
-        require(
-            AuthorityLike(authority).canCall(msg.sender, address(this), msg.sig),
-            "SparkLendFreezer/cannot-call"
-        );
-
+    function freezeAllMarkets() external freezeCheck {
         address[] memory reserves = PoolLike(pool).getReservesList();
 
         for (uint256 i = 0; i < reserves.length; i++) {
             if (reserves[i] == address(0)) continue;
             PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserves[i], true);
         }
+
+        canFreeze = false;
+    }
+
+    function freezeMarket(address reserve) external freezeCheck {
+        PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserve, true);
 
         canFreeze = false;
     }
