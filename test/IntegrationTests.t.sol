@@ -85,7 +85,9 @@ contract IntegrationTests is Test {
 
         deal(WETH, sparkUser, 20e18);  // Deal enough for 2 supplies
 
-        // Check user actions
+        // 1. Check supply/borrow before freeze
+        // NOTE: For all checks, not checking pool.swapBorrowRateMode() since stable rate
+        //       isn't enabled on any reserve.
 
         vm.startPrank(sparkUser);
 
@@ -98,17 +100,16 @@ contract IntegrationTests is Test {
 
         vm.stopPrank();
 
+        // 2. Freeze market
+
+        vm.prank(randomUser);  // Demonstrate no ACL in spell
         freezeWeth.freeze();
 
         assertEq(_isFrozen(WETH), true);
 
-        // Check user actions
-        // NOTE: Not checking pool.swapBorrowRateMode() since stable rate
-        //       isn't enabled on any reserve.
+        // 3. Check supply/borrow after freeze
 
         vm.startPrank(sparkUser);
-
-        deal(WETH, sparkUser, 10e18);
 
         // User can't supply
         IERC20(WETH).safeApprove(POOL, 10e18);
@@ -121,13 +122,13 @@ contract IntegrationTests is Test {
 
         vm.stopPrank();
 
-        // Simulate spell after freeze, unfreezing market
+        // 4. Simulate spell after freeze, unfreezing market
         vm.prank(SPARK_PROXY);
         poolConfig.setReserveFreeze(WETH, false);
 
         assertEq(_isFrozen(WETH), false);
 
-        // Check user actions
+        // 5. Check supply/borrow after unfreeze
 
         vm.startPrank(sparkUser);
 
@@ -137,8 +138,6 @@ contract IntegrationTests is Test {
 
         // User can borrow
         pool.borrow(WETH, 1e18, 2, 0, sparkUser);
-
-        vm.stopPrank();
     }
 
     function _vote(address spell) internal {
