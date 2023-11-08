@@ -9,7 +9,12 @@ import { IERC20 }    from "lib/erc20-helpers/src/interfaces/IERC20.sol";
 import { SparkLendFreezer } from "src/SparkLendFreezer.sol";
 import { FreezeWETH }       from "src/FreezeWETH.sol";
 
-import { IACLManagerLike, IAuthorityLike, IPoolDataProviderLike } from "test/Interfaces.sol";
+import { IACLManager }       from "lib/aave-v3-core/contracts/interfaces/IACLManager.sol";
+import { IPoolConfigurator } from "lib/aave-v3-core/contracts/interfaces/IPoolConfigurator.sol";
+import { IPoolDataProvider } from "lib/aave-v3-core/contracts/interfaces/IPoolDataProvider.sol";
+import { IPool }             from "lib/aave-v3-core/contracts/interfaces/IPool.sol";
+
+import { IAuthorityLike } from "test/Interfaces.sol";
 
 contract IntegrationTests is Test {
 
@@ -25,11 +30,15 @@ contract IntegrationTests is Test {
     address constant SPARK_PROXY   = 0x3300f198988e4C9C63F75dF86De36421f06af8c4;
     address constant WETH          = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-    address mkrWhale = makeAddr("mkrWhale");
-    address user     = makeAddr("user");
+    address mkrWhale   = makeAddr("mkrWhale");
+    address sparkUser  = makeAddr("sparkUser");
+    address randomUser = makeAddr("randomUser");
 
-    IAuthorityLike        authority    = IAuthorityLike(AUTHORITY);
-    IPoolDataProviderLike dataProvider = IPoolDataProviderLike(DATA_PROVIDER);
+    IAuthorityLike    authority    = IAuthorityLike(AUTHORITY);
+    IACLManager       aclManager   = IACLManager(ACL_MANAGER);
+    IPool             pool         = IPool(POOL);
+    IPoolConfigurator poolConfig   = IPoolConfigurator(POOL_CONFIG);
+    IPoolDataProvider dataProvider = IPoolDataProvider(DATA_PROVIDER);
 
     SparkLendFreezer freezer;
     FreezeWETH       freezeWeth;
@@ -62,29 +71,75 @@ contract IntegrationTests is Test {
             authority.canCall(address(freezeWeth), address(freezer), freezer.freezeMarket.selector)
         );
 
-        vm.expectRevert(bytes("4"));   // CALLER_NOT_RISK_OR_POOL_ADMIN
+        vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
         freezeWeth.freeze();
     }
 
-    // function test_freezeWeth() external {
-    //     _vote(address(freezeWeth));
+    function test_freezeWeth() external {
+        _vote(address(freezeWeth));
 
-    //     vm.prank(SPARK_PROXY);
-    //     IACLManagerLike(ACL_MANAGER).addRiskAdmin(address(freezer));
+        vm.prank(SPARK_PROXY);
+        aclManager.addRiskAdmin(address(freezer));
 
-    //     assertEq(_isFrozen(WETH), false);
+        assertEq(_isFrozen(WETH), false);
 
-    //     vm.startPrank(user);
-    //     IERC20(WETH).safeApprove(POOL, 1e18);
-    //     pool.supply(config.underlying, amount, user, 0);
-    //     vm.stopPrank();
+        deal(WETH, sparkUser, 20e18);  // Deal enough for 2 supplies
 
-    //     freezeWeth.freeze();
+        // Check user actions
 
-    //     assertEq(_isFrozen(WETH), true);
+        vm.startPrank(sparkUser);
 
-    //     // NOTE: Not checking pool.swapBorrowRateMode since stable rate isn't enabled on any reserve.
-    // }
+        // User can supply
+        IERC20(WETH).safeApprove(POOL, 10e18);
+        pool.supply(WETH, 10e18, sparkUser, 0);
+
+        // User can borrow
+        pool.borrow(WETH, 1e18, 2, 0, sparkUser);
+
+        vm.stopPrank();
+
+        freezeWeth.freeze();
+
+        assertEq(_isFrozen(WETH), true);
+
+        // Check user actions
+        // NOTE: Not checking pool.swapBorrowRateMode() since stable rate
+        //       isn't enabled on any reserve.
+
+        vm.startPrank(sparkUser);
+
+        deal(WETH, sparkUser, 10e18);
+
+        // User can't supply
+        IERC20(WETH).safeApprove(POOL, 10e18);
+        vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
+        pool.supply(WETH, 10e18, sparkUser, 0);
+
+        // User can't borrow
+        vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
+        pool.borrow(WETH, 1e18, 2, 0, sparkUser);
+
+        vm.stopPrank();
+
+        // Simulate spell after freeze, unfreezing market
+        vm.prank(SPARK_PROXY);
+        poolConfig.setReserveFreeze(WETH, false);
+
+        assertEq(_isFrozen(WETH), false);
+
+        // Check user actions
+
+        vm.startPrank(sparkUser);
+
+        // User can supply
+        IERC20(WETH).safeApprove(POOL, 10e18);
+        pool.supply(WETH, 10e18, sparkUser, 0);
+
+        // User can borrow
+        pool.borrow(WETH, 1e18, 2, 0, sparkUser);
+
+        vm.stopPrank();
+    }
 
     function _vote(address spell) internal {
         uint256 amount = 1_000_000 ether;

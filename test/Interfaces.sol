@@ -12,25 +12,3 @@ interface IAuthorityLike {
 
     function lift(address target) external;
 }
-
-interface IACLManagerLike {
-    function addRiskAdmin(address target) external;
-}
-
-interface IPoolDataProviderLike {
-    function getReserveConfigurationData(address asset)
-        external
-        view
-        returns (
-            uint256 decimals,
-            uint256 ltv,
-            uint256 liquidationThreshold,
-            uint256 liquidationBonus,
-            uint256 reserveFactor,
-            bool usageAsCollateralEnabled,
-            bool borrowingEnabled,
-            bool stableBorrowRateEnabled,
-            bool isActive,
-            bool isFrozen
-        );
-}
