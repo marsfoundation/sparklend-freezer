@@ -27,13 +27,32 @@ interface ISparkLendFreezer {
     /**********************************************************************************************/
 
     /**
+     *  @dev    Returns the address of the pool configurator.
+     *  @return The address of the pool configurator.
+     */
+    function poolConfigurator() external view returns (address);
+
+    /**
+     *  @dev    Returns the address of the pool.
+     *  @return The address of the pool.
+     */
+    function pool() external view returns (address);
+
+    /**
+     *  @dev    Returns the address of the authority.
+     *  @return The address of the authority.
+     */
+    function authority() external view returns (address);
+
+    /**
      *  @dev    Returns a 0 or 1 depending on if the user has been added as an admin.
+     *          0 means the user is not an admin, 1 means the user is an admin.
      *  @return relied The value of the user's admin status.
      */
     function wards(address user) external view returns (uint256 relied);
 
     /**********************************************************************************************/
-    /*** Administrative Functions                                                               ***/
+    /*** Wards Functions                                                                        ***/
     /**********************************************************************************************/
 
     /**
@@ -47,5 +66,26 @@ interface ISparkLendFreezer {
      *  @param usr The address of the new admin.
      */
     function rely(address usr) external;
+
+    /**
+     * @dev   Function to set a new authority, permissioned to wards.
+     * @param authority The address of the new authority.
+     */
+    function setAuthority(address authority) external;
+
+    /**********************************************************************************************/
+    /*** Auth Functions                                                                         ***/
+    /**********************************************************************************************/
+
+    /**
+     *  @dev   Function to freeze a specified market. Permissioned to the `hat` in the Chief.
+     *  @param reserve The address of the market to freeze.
+     */
+    function freezeMarket(address reserve) external;
+
+    /**
+     *  @dev Function to freeze all markets. Permissioned to the `hat` in the Chief.
+     */
+    function freezeAllMarkets() external;
 
 }

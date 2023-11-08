@@ -21,10 +21,10 @@ contract SparkLendFreezer is ISparkLendFreezer {
     /*** Declarations and Constructor                                                           ***/
     /**********************************************************************************************/
 
-    address public immutable poolConfigurator;
-    address public immutable pool;
+    address public override immutable poolConfigurator;
+    address public override immutable pool;
 
-    address public authority;
+    address public override authority;
 
     mapping (address => uint256) public override wards;
 
@@ -68,7 +68,7 @@ contract SparkLendFreezer is ISparkLendFreezer {
         emit Rely(usr);
     }
 
-    function setAuthority(address authority_) external auth {
+    function setAuthority(address authority_) external override auth {
         address oldAuthority = authority;
         authority = authority_;
         emit SetAuthority(oldAuthority, authority_);
@@ -78,7 +78,7 @@ contract SparkLendFreezer is ISparkLendFreezer {
     /*** Auth Functions                                                                         ***/
     /**********************************************************************************************/
 
-    function freezeAllMarkets() external canCall {
+    function freezeAllMarkets() external override canCall {
         address[] memory reserves = PoolLike(pool).getReservesList();
 
         for (uint256 i = 0; i < reserves.length; i++) {
@@ -87,7 +87,7 @@ contract SparkLendFreezer is ISparkLendFreezer {
         }
     }
 
-    function freezeMarket(address reserve) external canCall {
+    function freezeMarket(address reserve) external override canCall {
         PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserve, true);
     }
 
