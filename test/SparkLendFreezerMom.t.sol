@@ -5,6 +5,8 @@ import "forge-std/Test.sol";
 
 import { SparkLendFreezerMom } from "../src/SparkLendFreezerMom.sol";
 
+import { SparkLendFreezerMomHarness } from "./harnesses/SparkLendFreezerMomHarness.sol";
+
 import { AuthorityMock, ConfiguratorMock, PoolMock } from "./Mocks.sol";
 
 contract SparkLendFreezerMomUnitTestBase is Test {
@@ -134,6 +136,59 @@ contract FreezeMarketTests is SparkLendFreezerMomUnitTestBase {
 
         vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(reserve, true)));
         freezer.freezeMarket(reserve);
+    }
+
+}
+
+contract SparkLendFreezerMomIsAuthorizedTest is Test {
+
+    address public configurator;
+    address public pool;
+    address public owner;
+
+    AuthorityMock public authority;
+
+    SparkLendFreezerMomHarness public freezer;
+
+    address caller = makeAddr("caller");
+
+    function setUp() public {
+        owner = makeAddr("owner");
+
+        authority    = new AuthorityMock();
+        configurator = address(new ConfiguratorMock());
+        pool         = address(new PoolMock());
+        freezer      = new SparkLendFreezerMomHarness(configurator, pool, address(authority));
+
+        freezer.setOwner(owner);
+    }
+
+    function test_isAuthorized_internalCall() external {
+        assertEq(freezer.isAuthorizedExternal(address(freezer), bytes4("0")), true);
+    }
+
+    function test_isAuthorized_srcIsOwner() external {
+        assertEq(freezer.isAuthorizedExternal(owner, bytes4("0")), true);
+    }
+
+    function test_isAuthorized_authorityIsZero() external {
+        vm.prank(owner);
+        freezer.setAuthority(address(0));
+        assertEq(freezer.isAuthorizedExternal(caller, bytes4("0")), false);
+    }
+
+    function test_isAuthorized_canCall() external {
+        vm.prank(owner);
+        authority.__setCanCall(caller, address(freezer), bytes4("0"), true);
+
+        vm.expectCall(
+            address(authority),
+            abi.encodePacked(
+                AuthorityMock.canCall.selector,
+                abi.encode(caller, address(freezer), bytes4("0"))
+            )
+        );
+        assertEq(freezer.isAuthorizedExternal(caller, bytes4("0")), true);
     }
 
 }
