@@ -54,13 +54,13 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
     /*** Wards Functions                                                                        ***/
     /**********************************************************************************************/
 
-    function setAuthority(address authority_) external onlyOwner {
+    function setAuthority(address authority_) external override onlyOwner {
         emit SetAuthority(authority, authority_);
         authority = authority_;
     }
 
 
-    function setOwner(address owner_) external onlyOwner {
+    function setOwner(address owner_) external override onlyOwner {
         emit SetOwner(owner, owner_);
         owner = owner_;
     }
@@ -69,7 +69,7 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
     /*** Auth Functions                                                                         ***/
     /**********************************************************************************************/
 
-    function freezeAllMarkets() external auth {
+    function freezeAllMarkets() external override auth {
         address[] memory reserves = PoolLike(pool).getReservesList();
 
         for (uint256 i = 0; i < reserves.length; i++) {
@@ -78,7 +78,7 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
         }
     }
 
-    function freezeMarket(address reserve) external auth {
+    function freezeMarket(address reserve) external override auth {
         PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserve, true);
     }
 
