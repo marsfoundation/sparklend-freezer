@@ -3,96 +3,77 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import { SparkLendFreezer } from "../src/SparkLendFreezer.sol";
+import { SparkLendFreezerMom } from "../src/SparkLendFreezerMom.sol";
 
 import { AuthorityMock, ConfiguratorMock, PoolMock } from "./Mocks.sol";
 
-contract SparkLendFreezerUnitTestBase is Test {
+contract SparkLendFreezerMomUnitTestBase is Test {
 
     address public configurator;
     address public pool;
-    address public ward;
+    address public owner;
 
     AuthorityMock public authority;
 
-    SparkLendFreezer public freezer;
+    SparkLendFreezerMom public freezer;
 
     function setUp() public {
-        ward = makeAddr("ward");
+        owner = makeAddr("owner");
 
         authority    = new AuthorityMock();
         configurator = address(new ConfiguratorMock());
         pool         = address(new PoolMock());
-        freezer      = new SparkLendFreezer(configurator, pool, address(authority));
+        freezer      = new SparkLendFreezerMom(configurator, pool, address(authority));
 
-        freezer.rely(ward);
-        freezer.deny(address(this));
+        freezer.setOwner(owner);
     }
 
 }
 
-contract ConstructorTests is SparkLendFreezerUnitTestBase {
+contract ConstructorTests is SparkLendFreezerMomUnitTestBase {
 
     function test_constructor() public {
-        freezer = new SparkLendFreezer(configurator, pool, address(authority));
+        freezer = new SparkLendFreezerMom(configurator, pool, address(authority));
 
-        assertEq(freezer.poolConfigurator(),   configurator);
-        assertEq(freezer.pool(),               pool);
-        assertEq(freezer.authority(),          address(authority));
-        assertEq(freezer.wards(address(this)), 1);
+        assertEq(freezer.poolConfigurator(), configurator);
+        assertEq(freezer.pool(),             pool);
+        assertEq(freezer.authority(),        address(authority));
+        assertEq(freezer.owner(),            address(this));
     }
 
 }
 
-contract DenyTests is SparkLendFreezerUnitTestBase {
+contract SetOwnerTests is SparkLendFreezerMomUnitTestBase {
 
-    function test_deny_no_auth() public {
-        vm.expectRevert("SparkLendFreezer/not-authorized");
-        freezer.deny(ward);
+    function test_setOwner_no_auth() public {
+        vm.expectRevert("SparkLendFreezerMom/only-owner");
+        freezer.setOwner(address(1));
     }
 
-    function test_deny() public {
-        assertEq(freezer.wards(ward), 1);
+    function test_setOwner() public {
+        address newOwner = makeAddr("newOwner");
+        assertEq(freezer.owner(), owner);
 
-        vm.prank(ward);
-        freezer.deny(ward);
+        vm.prank(owner);
+        freezer.setOwner(newOwner);
 
-        assertEq(freezer.wards(ward), 0);
-    }
-
-}
-
-contract RelyTests is SparkLendFreezerUnitTestBase {
-
-    function test_rely_no_auth() public {
-        vm.expectRevert("SparkLendFreezer/not-authorized");
-        freezer.rely(makeAddr("new ward"));
-    }
-
-    function test_rely() public {
-        address newWard = makeAddr("new ward");
-        assertEq(freezer.wards(newWard), 0);
-
-        vm.prank(ward);
-        freezer.rely(newWard);
-
-        assertEq(freezer.wards(ward), 1);
+        assertEq(freezer.owner(), newOwner);
     }
 
 }
 
-contract SetAuthorityTests is SparkLendFreezerUnitTestBase {
+contract SetAuthorityTests is SparkLendFreezerMomUnitTestBase {
 
     function test_setAuthority_no_auth() public {
-        vm.expectRevert("SparkLendFreezer/not-authorized");
-        freezer.setAuthority(makeAddr("new authority"));
+        vm.expectRevert("SparkLendFreezerMom/only-owner");
+        freezer.setAuthority(makeAddr("newAuthority"));
     }
 
     function test_setAuthority() public {
-        address newAuthority = makeAddr("new authority");
+        address newAuthority = makeAddr("newAuthority");
         assertEq(freezer.authority(), address(authority));
 
-        vm.prank(ward);
+        vm.prank(owner);
         freezer.setAuthority(newAuthority);
 
         assertEq(freezer.authority(), newAuthority);
@@ -100,10 +81,10 @@ contract SetAuthorityTests is SparkLendFreezerUnitTestBase {
 
 }
 
-contract FreezeAllMarketsTests is SparkLendFreezerUnitTestBase {
+contract FreezeAllMarketsTests is SparkLendFreezerMomUnitTestBase {
 
     function test_freezeAllMarkets_noAuth() public {
-        vm.expectRevert("SparkLendFreezer/cannot-call");
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
         freezer.freezeAllMarkets();
     }
 
@@ -132,12 +113,12 @@ contract FreezeAllMarketsTests is SparkLendFreezerUnitTestBase {
 
 }
 
-contract FreezeMarketTests is SparkLendFreezerUnitTestBase {
+contract FreezeMarketTests is SparkLendFreezerMomUnitTestBase {
 
     address reserve = makeAddr("reserve");
 
     function test_freezeMarket_noAuth() public {
-        vm.expectRevert("SparkLendFreezer/cannot-call");
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
         freezer.freezeMarket(reserve);
     }
 
