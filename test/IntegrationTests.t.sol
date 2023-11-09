@@ -6,8 +6,8 @@ import "forge-std/Test.sol";
 import { SafeERC20 } from "lib/erc20-helpers/src/SafeERC20.sol";
 import { IERC20 }    from "lib/erc20-helpers/src/interfaces/IERC20.sol";
 
-import { SparkLendFreezer } from "src/SparkLendFreezer.sol";
-import { FreezeWETH }       from "src/FreezeWETH.sol";
+import { SparkLendFreezerMom } from "src/SparkLendFreezerMom.sol";
+import { FreezeWETH }          from "src/FreezeWETH.sol";
 
 import { IACLManager }       from "lib/aave-v3-core/contracts/interfaces/IACLManager.sol";
 import { IPoolConfigurator } from "lib/aave-v3-core/contracts/interfaces/IPoolConfigurator.sol";
@@ -40,17 +40,16 @@ contract IntegrationTests is Test {
     IPoolConfigurator poolConfig   = IPoolConfigurator(POOL_CONFIG);
     IPoolDataProvider dataProvider = IPoolDataProvider(DATA_PROVIDER);
 
-    SparkLendFreezer freezer;
-    FreezeWETH       freezeWeth;
+    SparkLendFreezerMom freezer;
+    FreezeWETH          freezeWeth;
 
     function setUp() public {
         vm.createSelectFork(getChain('mainnet').rpcUrl);
 
-        freezer    = new SparkLendFreezer(POOL_CONFIG, POOL, AUTHORITY);
+        freezer    = new SparkLendFreezerMom(POOL_CONFIG, POOL, AUTHORITY);
         freezeWeth = new FreezeWETH(address(freezer));
 
-        freezer.rely(PAUSE_PROXY);
-        freezer.deny(address(this));
+        freezer.setOwner(PAUSE_PROXY);
     }
 
     function test_cannotCallWithoutHat() external {
@@ -59,7 +58,7 @@ contract IntegrationTests is Test {
             !authority.canCall(address(freezeWeth), address(freezer), freezer.freezeMarket.selector)
         );
 
-        vm.expectRevert("SparkLendFreezer/cannot-call");
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
         freezeWeth.freeze();
     }
 

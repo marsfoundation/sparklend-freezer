@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.13;
 
-import { ISparkLendFreezer } from "src/interfaces/ISparkLendFreezer.sol";
+import { ISparkLendFreezerMom } from "src/interfaces/ISparkLendFreezerMom.sol";
 
 contract FreezeWETH {
 
@@ -14,7 +14,7 @@ contract FreezeWETH {
     }
 
     function freeze() external {
-        ISparkLendFreezer(sparkLendFreezer).freezeMarket(WETH);
+        ISparkLendFreezerMom(sparkLendFreezer).freezeMarket(WETH);
     }
 
 }

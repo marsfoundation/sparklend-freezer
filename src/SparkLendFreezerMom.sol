@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.13;
 
-import { ISparkLendFreezer } from "src/interfaces/ISparkLendFreezer.sol";
+import { ISparkLendFreezerMom } from "src/interfaces/ISparkLendFreezerMom.sol";
 
 interface AuthorityLike {
     function canCall(address src, address dst, bytes4 sig) external view returns (bool);
@@ -15,7 +15,7 @@ interface PoolLike {
     function getReservesList() external view returns (address[] memory);
 }
 
-contract SparkLendFreezer is ISparkLendFreezer {
+contract SparkLendFreezerMom is ISparkLendFreezerMom {
 
     /**********************************************************************************************/
     /*** Declarations and Constructor                                                           ***/
@@ -24,33 +24,29 @@ contract SparkLendFreezer is ISparkLendFreezer {
     address public override immutable poolConfigurator;
     address public override immutable pool;
 
-    address public override authority;
-
-    mapping (address => uint256) public override wards;
+    address public authority;
+    address public owner;
 
     constructor(address poolConfigurator_, address pool_, address authority_) {
         poolConfigurator = poolConfigurator_;
         pool             = pool_;
         authority        = authority_;
+        owner            = msg.sender;
 
-        wards[msg.sender] = 1;
-        emit Rely(msg.sender);
+        emit SetOwner(address(0), msg.sender);
     }
 
     /**********************************************************************************************/
     /*** Modifiers                                                                              ***/
     /**********************************************************************************************/
 
-    modifier auth {
-        require(wards[msg.sender] == 1, "SparkLendFreezer/not-authorized");
+    modifier onlyOwner {
+        require(msg.sender == owner, "SparkLendFreezerMom/only-owner");
         _;
     }
 
-    modifier canCall {
-        require(
-            AuthorityLike(authority).canCall(msg.sender, address(this), msg.sig),
-            "SparkLendFreezer/cannot-call"
-        );
+    modifier auth {
+        require(isAuthorized(msg.sender, msg.sig), "SparkLendFreezerMom/not-authorized");
         _;
     }
 
@@ -58,27 +54,22 @@ contract SparkLendFreezer is ISparkLendFreezer {
     /*** Wards Functions                                                                        ***/
     /**********************************************************************************************/
 
-    function deny(address usr) external override auth {
-        wards[usr] = 0;
-        emit Deny(usr);
-    }
-
-    function rely(address usr) external override auth {
-        wards[usr] = 1;
-        emit Rely(usr);
-    }
-
-    function setAuthority(address authority_) external override auth {
-        address oldAuthority = authority;
+    function setAuthority(address authority_) external onlyOwner {
+        emit SetAuthority(authority, authority_);
         authority = authority_;
-        emit SetAuthority(oldAuthority, authority_);
+    }
+
+
+    function setOwner(address owner_) external onlyOwner {
+        emit SetOwner(owner, owner_);
+        owner = owner_;
     }
 
     /**********************************************************************************************/
     /*** Auth Functions                                                                         ***/
     /**********************************************************************************************/
 
-    function freezeAllMarkets() external override canCall {
+    function freezeAllMarkets() external override auth {
         address[] memory reserves = PoolLike(pool).getReservesList();
 
         for (uint256 i = 0; i < reserves.length; i++) {
@@ -87,8 +78,24 @@ contract SparkLendFreezer is ISparkLendFreezer {
         }
     }
 
-    function freezeMarket(address reserve) external override canCall {
+    function freezeMarket(address reserve) external override auth {
         PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserve, true);
+    }
+
+    /**********************************************************************************************/
+    /*** Internal Functions                                                                     ***/
+    /**********************************************************************************************/
+
+    function isAuthorized(address src, bytes4 sig) internal view returns (bool) {
+        if (src == address(this)) {
+            return true;
+        } else if (src == owner) {
+            return true;
+        } else if (authority == address(0)) {
+            return false;
+        } else {
+            return AuthorityLike(authority).canCall(src, address(this), sig);
+        }
     }
 
 }
