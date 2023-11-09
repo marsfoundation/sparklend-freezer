@@ -24,8 +24,8 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
     address public override immutable poolConfigurator;
     address public override immutable pool;
 
-    address public authority;
-    address public owner;
+    address public override authority;
+    address public override owner;
 
     constructor(address poolConfigurator_, address pool_, address authority_) {
         poolConfigurator = poolConfigurator_;
@@ -51,16 +51,16 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
     }
 
     /**********************************************************************************************/
-    /*** Wards Functions                                                                        ***/
+    /*** Owner Functions                                                                        ***/
     /**********************************************************************************************/
 
-    function setAuthority(address authority_) external onlyOwner {
+    function setAuthority(address authority_) external override onlyOwner {
         emit SetAuthority(authority, authority_);
         authority = authority_;
     }
 
 
-    function setOwner(address owner_) external onlyOwner {
+    function setOwner(address owner_) external override onlyOwner {
         emit SetOwner(owner, owner_);
         owner = owner_;
     }
