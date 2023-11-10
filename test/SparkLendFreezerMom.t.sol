@@ -45,7 +45,7 @@ contract ConstructorTests is SparkLendFreezerMomUnitTestBase {
 
 contract SetOwnerTests is SparkLendFreezerMomUnitTestBase {
 
-    function test_setOwner_no_auth() public {
+    function test_setOwner_noAuth() public {
         vm.expectRevert("SparkLendFreezerMom/only-owner");
         freezer.setOwner(address(1));
     }
@@ -64,7 +64,7 @@ contract SetOwnerTests is SparkLendFreezerMomUnitTestBase {
 
 contract SetAuthorityTests is SparkLendFreezerMomUnitTestBase {
 
-    function test_setAuthority_no_auth() public {
+    function test_setAuthority_noAuth() public {
         vm.expectRevert("SparkLendFreezerMom/only-owner");
         freezer.setAuthority(makeAddr("newAuthority"));
     }
@@ -89,8 +89,10 @@ contract FreezeAllMarketsTests is SparkLendFreezerMomUnitTestBase {
     }
 
     function test_freezeAllMarkets() public {
+        address caller = makeAddr("caller");
+
         authority.__setCanCall(
-            address(this),
+            caller,
             address(freezer),
             freezer.freezeAllMarkets.selector,
             true
@@ -105,6 +107,7 @@ contract FreezeAllMarketsTests is SparkLendFreezerMomUnitTestBase {
         bytes4 poolSig   = PoolMock.getReservesList.selector;
         bytes4 configSig = ConfiguratorMock.setReserveFreeze.selector;
 
+        vm.prank(caller);
         vm.expectCall(pool,         abi.encodePacked(poolSig));
         vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset1, true)));
         vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset2, true)));
@@ -123,8 +126,10 @@ contract FreezeMarketTests is SparkLendFreezerMomUnitTestBase {
     }
 
     function test_freezeMarket() public {
+        address caller = makeAddr("caller");
+
         authority.__setCanCall(
-            address(this),
+            caller,
             address(freezer),
             freezer.freezeMarket.selector,
             true
@@ -132,6 +137,7 @@ contract FreezeMarketTests is SparkLendFreezerMomUnitTestBase {
 
         bytes4 configSig = ConfiguratorMock.setReserveFreeze.selector;
 
+        vm.prank(caller);
         vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(reserve, true)));
         freezer.freezeMarket(reserve);
     }
