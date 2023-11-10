@@ -27,10 +27,9 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
     address public authority;
     address public owner;
 
-    constructor(address poolConfigurator_, address pool_, address authority_) {
+    constructor(address poolConfigurator_, address pool_) {
         poolConfigurator = poolConfigurator_;
         pool             = pool_;
-        authority        = authority_;
         owner            = msg.sender;
 
         emit SetOwner(address(0), msg.sender);

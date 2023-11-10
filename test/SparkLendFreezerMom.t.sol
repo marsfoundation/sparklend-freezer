@@ -23,8 +23,9 @@ contract SparkLendFreezerMomUnitTestBase is Test {
         authority    = new AuthorityMock();
         configurator = address(new ConfiguratorMock());
         pool         = address(new PoolMock());
-        freezer      = new SparkLendFreezerMom(configurator, pool, address(authority));
+        freezer      = new SparkLendFreezerMom(configurator, pool);
 
+        freezer.setAuthority(address(authority));
         freezer.setOwner(owner);
     }
 
@@ -33,11 +34,10 @@ contract SparkLendFreezerMomUnitTestBase is Test {
 contract ConstructorTests is SparkLendFreezerMomUnitTestBase {
 
     function test_constructor() public {
-        freezer = new SparkLendFreezerMom(configurator, pool, address(authority));
+        freezer = new SparkLendFreezerMom(configurator, pool);
 
         assertEq(freezer.poolConfigurator(), configurator);
         assertEq(freezer.pool(),             pool);
-        assertEq(freezer.authority(),        address(authority));
         assertEq(freezer.owner(),            address(this));
     }
 
