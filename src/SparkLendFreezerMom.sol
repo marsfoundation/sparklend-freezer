@@ -73,11 +73,13 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
 
         for (uint256 i = 0; i < reserves.length; i++) {
             PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserves[i], true);
+            emit FreezeMarket(reserves[i]);
         }
     }
 
     function freezeMarket(address reserve) external override auth {
         PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserve, true);
+        emit FreezeMarket(reserve);
     }
 
     /**********************************************************************************************/

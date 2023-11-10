@@ -8,6 +8,12 @@ interface ISparkLendFreezerMom {
     /**********************************************************************************************/
 
     /**
+     *  @dev   Event to log the freezing of a given market in SparkLend.
+     *  @param reserve The address of the market reserve.
+     */
+    event FreezeMarket(address indexed reserve);
+
+    /**
      *  @dev   Event to log the setting of a new owner.
      *  @param oldOwner The address of the previous owner.
      *  @param newOwner The address of the new owner.

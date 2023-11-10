@@ -144,4 +144,69 @@ contract FreezeMarketTests is SparkLendFreezerMomUnitTestBase {
 
 }
 
+contract EventTests is SparkLendFreezerMomUnitTestBase {
+
+    event FreezeMarket(address indexed reserve);
+    event SetOwner(address indexed oldOwner, address indexed newOwner);
+    event SetAuthority(address indexed oldAuthority, address indexed newAuthority);
+
+    function test_setAuthority_eventData() external {
+        address newAuthority = makeAddr("newAuthority");
+
+        vm.prank(owner);
+        vm.expectEmit(address(freezer));
+        emit SetAuthority(address(authority), newAuthority);
+        freezer.setAuthority(newAuthority);
+    }
+
+    function test_setOwner_eventData() external {
+        address newOwner = makeAddr("newOwner");
+
+        vm.prank(owner);
+        vm.expectEmit(address(freezer));
+        emit SetOwner(owner, newOwner);
+        freezer.setOwner(newOwner);
+    }
+
+    function test_freezeMarket_eventData() public {
+        address caller  = makeAddr("caller");
+        address asset = makeAddr("asset");
+
+        authority.__setCanCall(
+            caller,
+            address(freezer),
+            freezer.freezeMarket.selector,
+            true
+        );
+
+        vm.prank(caller);
+        emit FreezeMarket(asset);
+        freezer.freezeMarket(asset);
+    }
+
+    function test_freezeAllMarkets_eventData() public {
+        address caller = makeAddr("caller");
+
+        authority.__setCanCall(
+            caller,
+            address(freezer),
+            freezer.freezeAllMarkets.selector,
+            true
+        );
+
+        address asset1 = makeAddr("asset1");
+        address asset2 = makeAddr("asset2");
+
+        PoolMock(pool).__addAsset(asset1);
+        PoolMock(pool).__addAsset(asset2);
+
+        vm.prank(caller);
+        vm.expectEmit(address(freezer));
+        emit FreezeMarket(asset1);
+        vm.expectEmit(address(freezer));
+        emit FreezeMarket(asset2);
+        freezer.freezeAllMarkets();
+    }
+}
+
 
