@@ -169,8 +169,8 @@ contract EventTests is SparkLendFreezerMomUnitTestBase {
     }
 
     function test_freezeMarket_eventData() public {
-        address caller  = makeAddr("caller");
-        address asset = makeAddr("asset");
+        address caller = makeAddr("caller");
+        address asset  = makeAddr("asset");
 
         authority.__setCanCall(
             caller,
