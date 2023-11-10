@@ -50,7 +50,7 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
     }
 
     /**********************************************************************************************/
-    /*** Wards Functions                                                                        ***/
+    /*** Owner Functions                                                                        ***/
     /**********************************************************************************************/
 
     function setAuthority(address authority_) external override onlyOwner {
@@ -72,7 +72,6 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
         address[] memory reserves = PoolLike(pool).getReservesList();
 
         for (uint256 i = 0; i < reserves.length; i++) {
-            if (reserves[i] == address(0)) continue;
             PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserves[i], true);
         }
     }
