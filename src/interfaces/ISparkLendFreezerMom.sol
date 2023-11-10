@@ -8,6 +8,12 @@ interface ISparkLendFreezerMom {
     /**********************************************************************************************/
 
     /**
+     *  @dev   Event to log the freezing of a given market in SparkLend.
+     *  @param reserve The address of the market reserve.
+     */
+    event FreezeMarket(address indexed reserve);
+
+    /**
      *  @dev   Event to log the setting of a new owner.
      *  @param oldOwner The address of the previous owner.
      *  @param newOwner The address of the new owner.
@@ -70,13 +76,17 @@ interface ISparkLendFreezerMom {
     /**********************************************************************************************/
 
     /**
-     *  @dev   Function to freeze a specified market. Permissioned to the `hat` in the Chief.
+     *  @dev   Function to freeze a specified market. Permissioned using the isAuthorized function
+     *         which allows the owner, the freezer contract itself, or the `hat` in the Chief
+     *         to call the function.
      *  @param reserve The address of the market to freeze.
      */
     function freezeMarket(address reserve) external;
 
     /**
-     *  @dev Function to freeze all markets. Permissioned to the `hat` in the Chief.
+     *  @dev Function to freeze all markets. Permissioned using the isAuthorized function
+     *       which allows the owner, the freezer contract itself, or the `hat` in the Chief
+     *       to call the function.
      */
     function freezeAllMarkets() external;
 

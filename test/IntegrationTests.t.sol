@@ -46,9 +46,10 @@ contract IntegrationTests is Test {
     function setUp() public {
         vm.createSelectFork(getChain('mainnet').rpcUrl);
 
-        freezer    = new SparkLendFreezerMom(POOL_CONFIG, POOL, AUTHORITY);
+        freezer    = new SparkLendFreezerMom(POOL_CONFIG, POOL);
         freezeWeth = new FreezeWETH(address(freezer));
 
+        freezer.setAuthority(AUTHORITY);
         freezer.setOwner(PAUSE_PROXY);
     }
 

@@ -27,10 +27,9 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
     address public override authority;
     address public override owner;
 
-    constructor(address poolConfigurator_, address pool_, address authority_) {
+    constructor(address poolConfigurator_, address pool_) {
         poolConfigurator = poolConfigurator_;
         pool             = pool_;
-        authority        = authority_;
         owner            = msg.sender;
 
         emit SetOwner(address(0), msg.sender);
@@ -73,13 +72,14 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
         address[] memory reserves = PoolLike(pool).getReservesList();
 
         for (uint256 i = 0; i < reserves.length; i++) {
-            if (reserves[i] == address(0)) continue;
             PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserves[i], true);
+            emit FreezeMarket(reserves[i]);
         }
     }
 
     function freezeMarket(address reserve) external override auth {
         PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserve, true);
+        emit FreezeMarket(reserve);
     }
 
     /**********************************************************************************************/
