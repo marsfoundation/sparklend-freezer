@@ -9,6 +9,7 @@ interface ISparkLendFreezerMom {
 
     /**
      *  @dev   Event to log the freezing of a given market in SparkLend.
+     *  @dev   NOTE: This event will fire even if the market is already frozen.
      *  @param reserve The address of the market reserve.
      */
     event FreezeMarket(address indexed reserve);
@@ -78,7 +79,8 @@ interface ISparkLendFreezerMom {
     /**
      *  @dev   Function to freeze a specified market. Permissioned using the isAuthorized function
      *         which allows the owner, the freezer contract itself, or the `hat` in the Chief
-     *         to call the function.
+     *         to call the function. Note that the `authority` in this contract is assumed to be
+     *         the Chief in the MakerDAO protocol.
      *  @param reserve The address of the market to freeze.
      */
     function freezeMarket(address reserve) external;
