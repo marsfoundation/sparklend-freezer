@@ -72,8 +72,9 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
         address[] memory reserves = PoolLike(pool).getReservesList();
 
         for (uint256 i = 0; i < reserves.length; i++) {
-            PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserves[i], true);
-            emit FreezeMarket(reserves[i]);
+            address reserve = reserves[i];
+            PoolConfiguratorLike(poolConfigurator).setReserveFreeze(reserve, true);
+            emit FreezeMarket(reserve);
         }
     }
 
