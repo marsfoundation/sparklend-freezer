@@ -7,7 +7,8 @@ import { SafeERC20 } from "lib/erc20-helpers/src/SafeERC20.sol";
 import { IERC20 }    from "lib/erc20-helpers/src/interfaces/IERC20.sol";
 
 import { SparkLendFreezerMom } from "src/SparkLendFreezerMom.sol";
-import { FreezeWETH }          from "src/FreezeWETH.sol";
+import { EmergencySpell_SparkLend_FreezeSingleAsset as FreezeSingleAssetSpell }
+    from "src/spells/EmergencySpell_SparkLend_FreezeSingleAsset.sol";
 
 import { IACLManager }       from "lib/aave-v3-core/contracts/interfaces/IACLManager.sol";
 import { IPoolConfigurator } from "lib/aave-v3-core/contracts/interfaces/IPoolConfigurator.sol";
@@ -21,7 +22,7 @@ contract IntegrationTests is Test {
     using SafeERC20 for IERC20;
 
     address constant ACL_MANAGER   = 0xdA135Cd78A086025BcdC87B038a1C462032b510C;
-    address constant AUTHORITY     = 0x9eF05f7F6deB616fd37aC3c959a2dDD25A54E4F5;
+    address constant AUTHORITY     = 0x0a3f6849f78076aefaDf113F5BED87720274dDC0;
     address constant DATA_PROVIDER = 0xFc21d6d146E6086B8359705C8b28512a983db0cb;
     address constant MKR           = 0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2;
     address constant PAUSE_PROXY   = 0xBE8E3e3618f7474F8cB1d074A26afFef007E98FB;
@@ -40,50 +41,54 @@ contract IntegrationTests is Test {
     IPoolConfigurator poolConfig   = IPoolConfigurator(POOL_CONFIG);
     IPoolDataProvider dataProvider = IPoolDataProvider(DATA_PROVIDER);
 
-    SparkLendFreezerMom freezer;
-    FreezeWETH          freezeWeth;
+    SparkLendFreezerMom    freezer;
+    FreezeSingleAssetSpell freezeWethSpell;
 
     function setUp() public {
         vm.createSelectFork(getChain('mainnet').rpcUrl);
 
-        freezer    = new SparkLendFreezerMom(POOL_CONFIG, POOL);
-        freezeWeth = new FreezeWETH(address(freezer));
+        freezer         = new SparkLendFreezerMom(POOL_CONFIG, POOL);
+        freezeWethSpell = new FreezeSingleAssetSpell(address(freezer), WETH);
 
         freezer.setAuthority(AUTHORITY);
         freezer.setOwner(PAUSE_PROXY);
     }
 
     function test_cannotCallWithoutHat() external {
-        assertTrue(authority.hat() != address(freezeWeth));
+        assertTrue(authority.hat() != address(freezeWethSpell));
         assertTrue(
-            !authority.canCall(address(freezeWeth), address(freezer), freezer.freezeMarket.selector)
+            !authority.canCall(
+                address(freezeWethSpell),
+                address(freezer),
+                freezer.freezeMarket.selector
+            )
         );
 
         vm.expectRevert("SparkLendFreezerMom/not-authorized");
-        freezeWeth.freeze();
+        freezeWethSpell.freeze();
     }
 
     function test_cannotCallWithoutRoleSetup() external {
-        _vote(address(freezeWeth));
+        _vote(address(freezeWethSpell));
 
-        assertTrue(authority.hat() == address(freezeWeth));
+        assertTrue(authority.hat() == address(freezeWethSpell));
         assertTrue(
-            authority.canCall(address(freezeWeth), address(freezer), freezer.freezeMarket.selector)
+            authority.canCall(address(freezeWethSpell), address(freezer), freezer.freezeMarket.selector)
         );
 
         vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
-        freezeWeth.freeze();
+        freezeWethSpell.freeze();
     }
 
-    function test_freezeWeth() external {
-        _vote(address(freezeWeth));
+    function test_freezeWethSpell() external {
+        _vote(address(freezeWethSpell));
 
         vm.prank(SPARK_PROXY);
         aclManager.addRiskAdmin(address(freezer));
 
         assertEq(_isFrozen(WETH), false);
 
-        deal(WETH, sparkUser, 20e18);  // Deal enough for 2 supplies
+        deal(WETH, sparkUser, 20 ether);  // Deal enough for 2 supplies
 
         // 1. Check supply/borrow before freeze
         // NOTE: For all checks, not checking pool.swapBorrowRateMode() since stable rate
@@ -91,19 +96,20 @@ contract IntegrationTests is Test {
 
         vm.startPrank(sparkUser);
 
-        // User can supply
-        IERC20(WETH).safeApprove(POOL, 10e18);
-        pool.supply(WETH, 10e18, sparkUser, 0);
+        IERC20(WETH).safeApprove(POOL, type(uint256).max);
 
-        // User can borrow
-        pool.borrow(WETH, 1e18, 2, 0, sparkUser);
+        // User can supply, borrow, repay, and withdraw
+        pool.supply(WETH, 10 ether, sparkUser, 0);
+        pool.borrow(WETH, 1 ether, 2, 0, sparkUser);
+        pool.repay(WETH, 0.5 ether, 2, sparkUser);
+        pool.withdraw(WETH, 1 ether, sparkUser);
 
         vm.stopPrank();
 
         // 2. Freeze market
 
         vm.prank(randomUser);  // Demonstrate no ACL in spell
-        freezeWeth.freeze();
+        freezeWethSpell.freeze();
 
         assertEq(_isFrozen(WETH), true);
 
@@ -112,13 +118,16 @@ contract IntegrationTests is Test {
         vm.startPrank(sparkUser);
 
         // User can't supply
-        IERC20(WETH).safeApprove(POOL, 10e18);
         vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
-        pool.supply(WETH, 10e18, sparkUser, 0);
+        pool.supply(WETH, 10 ether, sparkUser, 0);
 
         // User can't borrow
         vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
-        pool.borrow(WETH, 1e18, 2, 0, sparkUser);
+        pool.borrow(WETH, 1 ether, 2, 0, sparkUser);
+
+        // User can still repay and withdraw
+        pool.repay(WETH, 0.5 ether, 2, sparkUser);
+        pool.withdraw(WETH, 1 ether, sparkUser);
 
         vm.stopPrank();
 
@@ -132,12 +141,11 @@ contract IntegrationTests is Test {
 
         vm.startPrank(sparkUser);
 
-        // User can supply
-        IERC20(WETH).safeApprove(POOL, 10e18);
-        pool.supply(WETH, 10e18, sparkUser, 0);
-
-        // User can borrow
-        pool.borrow(WETH, 1e18, 2, 0, sparkUser);
+        // User can supply, borrow, repay, and withdraw
+        pool.supply(WETH, 10 ether, sparkUser, 0);
+        pool.borrow(WETH, 1 ether, 2, 0, sparkUser);
+        pool.repay(WETH, 1 ether, 2, sparkUser);
+        pool.withdraw(WETH, 1 ether, sparkUser);
     }
 
     function _vote(address spell) internal {
@@ -152,6 +160,9 @@ contract IntegrationTests is Test {
         address[] memory slate = new address[](1);
         slate[0] = spell;
         authority.vote(slate);
+
+        vm.roll(block.number + 1);
+
         authority.lift(spell);
 
         vm.stopPrank();

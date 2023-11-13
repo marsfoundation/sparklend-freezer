@@ -3,18 +3,18 @@ pragma solidity ^0.8.13;
 
 import { ISparkLendFreezerMom } from "src/interfaces/ISparkLendFreezerMom.sol";
 
-contract FreezeWETH {
-
-    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+contract EmergencySpell_SparkLend_FreezeSingleAsset {
 
     address public sparkLendFreezer;
+    address public reserve;
 
-    constructor(address sparklendFreezer_) {
+    constructor(address sparklendFreezer_, address reserve_) {
         sparkLendFreezer = sparklendFreezer_;
+        reserve          = reserve_;
     }
 
     function freeze() external {
-        ISparkLendFreezerMom(sparkLendFreezer).freezeMarket(WETH);
+        ISparkLendFreezerMom(sparkLendFreezer).freezeMarket(reserve);
     }
 
 }
