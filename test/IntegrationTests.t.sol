@@ -90,7 +90,7 @@ contract IntegrationTests is Test {
 
         deal(WETH, sparkUser, 20 ether);  // Deal enough for 2 supplies
 
-        // 1. Check supply/borrow before freeze
+        // 1. Check user actions before freeze
         // NOTE: For all checks, not checking pool.swapBorrowRateMode() since stable rate
         //       isn't enabled on any reserve.
 
@@ -113,7 +113,7 @@ contract IntegrationTests is Test {
 
         assertEq(_isFrozen(WETH), true);
 
-        // 3. Check supply/borrow after freeze
+        // 3. Check user actions after freeze
 
         vm.startPrank(sparkUser);
 
@@ -137,7 +137,7 @@ contract IntegrationTests is Test {
 
         assertEq(_isFrozen(WETH), false);
 
-        // 5. Check supply/borrow after unfreeze
+        // 5. Check user actions after unfreeze
 
         vm.startPrank(sparkUser);
 
