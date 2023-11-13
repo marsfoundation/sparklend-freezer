@@ -5,8 +5,8 @@ import { ISparkLendFreezerMom } from "src/interfaces/ISparkLendFreezerMom.sol";
 
 contract EmergencySpell_SparkLend_FreezeSingleAsset {
 
-    address public sparkLendFreezer;
-    address public reserve;
+    address public immutable sparkLendFreezer;
+    address public immutable reserve;
 
     constructor(address sparklendFreezer_, address reserve_) {
         sparkLendFreezer = sparklendFreezer_;
