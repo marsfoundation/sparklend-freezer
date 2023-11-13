@@ -88,7 +88,8 @@ interface ISparkLendFreezerMom {
     /**
      *  @dev Function to freeze all markets. Permissioned using the isAuthorized function
      *       which allows the owner, the freezer contract itself, or the `hat` in the Chief
-     *       to call the function.
+     *       to call the function. Note that the `authority` in this contract is assumed to be
+     *       the Chief in the MakerDAO protocol.
      */
     function freezeAllMarkets() external;
 
