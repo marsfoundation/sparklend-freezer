@@ -5,16 +5,16 @@ import { ISparkLendFreezerMom } from "src/interfaces/ISparkLendFreezerMom.sol";
 
 contract EmergencySpell_SparkLend_FreezeSingleAsset {
 
-    address public immutable sparkLendFreezer;
+    address public immutable sparkLendFreezerMom;
     address public immutable reserve;
 
-    constructor(address sparklendFreezer_, address reserve_) {
-        sparkLendFreezer = sparklendFreezer_;
-        reserve          = reserve_;
+    constructor(address sparklendFreezerMom_, address reserve_) {
+        sparkLendFreezerMom = sparklendFreezerMom_;
+        reserve             = reserve_;
     }
 
     function freeze() external {
-        ISparkLendFreezerMom(sparkLendFreezer).freezeMarket(reserve);
+        ISparkLendFreezerMom(sparkLendFreezerMom).freezeMarket(reserve);
     }
 
 }

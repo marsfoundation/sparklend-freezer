@@ -73,7 +73,11 @@ contract IntegrationTests is Test {
 
         assertTrue(authority.hat() == address(freezeWethSpell));
         assertTrue(
-            authority.canCall(address(freezeWethSpell), address(freezer), freezer.freezeMarket.selector)
+            authority.canCall(
+                address(freezeWethSpell),
+                address(freezer),
+                freezer.freezeMarket.selector
+            )
         );
 
         vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
