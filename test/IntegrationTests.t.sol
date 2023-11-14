@@ -7,8 +7,12 @@ import { SafeERC20 } from "lib/erc20-helpers/src/SafeERC20.sol";
 import { IERC20 }    from "lib/erc20-helpers/src/interfaces/IERC20.sol";
 
 import { SparkLendFreezerMom } from "src/SparkLendFreezerMom.sol";
+
 import { EmergencySpell_SparkLend_FreezeSingleAsset as FreezeSingleAssetSpell }
     from "src/spells/EmergencySpell_SparkLend_FreezeSingleAsset.sol";
+
+import { EmergencySpell_SparkLend_FreezeAllAssets as FreezeAllAssetsSpell }
+    from "src/spells/EmergencySpell_SparkLend_FreezeAllAssets.sol";
 
 import { IACLManager }       from "lib/aave-v3-core/contracts/interfaces/IACLManager.sol";
 import { IPoolConfigurator } from "lib/aave-v3-core/contracts/interfaces/IPoolConfigurator.sol";
@@ -41,7 +45,7 @@ contract IntegrationTestsBase is Test {
     IPoolConfigurator poolConfig   = IPoolConfigurator(POOL_CONFIG);
     IPoolDataProvider dataProvider = IPoolDataProvider(DATA_PROVIDER);
 
-    SparkLendFreezerMom    freezer;
+    SparkLendFreezerMom freezer;
 
     function setUp() public virtual {
         vm.createSelectFork(getChain('mainnet').rpcUrl, 18_572_000);
@@ -186,6 +190,47 @@ contract FreezeSingleAssetSpellFailures is IntegrationTestsBase {
 
         vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
         freezeAssetSpell.freeze();
+    }
+
+}
+
+contract FreezeAllAssetsSpellFailures is IntegrationTestsBase {
+
+    FreezeAllAssetsSpell freezeAllAssetsSpell;
+
+    function setUp() public override {
+        super.setUp();
+        freezeAllAssetsSpell = new FreezeAllAssetsSpell(address(freezer));
+    }
+
+    function test_cannotCallWithoutHat() external {
+        assertTrue(authority.hat() != address(freezeAllAssetsSpell));
+        assertTrue(
+            !authority.canCall(
+                address(freezeAllAssetsSpell),
+                address(freezer),
+                freezer.freezeAllMarkets.selector
+            )
+        );
+
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezeAllAssetsSpell.freeze();
+    }
+
+    function test_cannotCallWithoutRoleSetup() external {
+        _vote(address(freezeAllAssetsSpell));
+
+        assertTrue(authority.hat() == address(freezeAllAssetsSpell));
+        assertTrue(
+            authority.canCall(
+                address(freezeAllAssetsSpell),
+                address(freezer),
+                freezer.freezeAllMarkets.selector
+            )
+        );
+
+        vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
+        freezeAllAssetsSpell.freeze();
     }
 
 }
