@@ -97,7 +97,6 @@ contract IntegrationTestsBase is Test {
         // reserve asset can be borrowed.
         // TODO: Remove LTV check once DAI spell goes through
         if (!_usageAsCollateralEnabled(asset) || _ltv(asset) == 1) {
-            console.log("Collateral NOT enabled", IERC20(asset).name());
             _supplyWethCollateral(sparkUser, 1_000 ether);
         }
 
@@ -396,7 +395,7 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
             address asset    = reserves[i];
             uint256 decimals = IERC20(asset).decimals();
 
-            // If the asset is frozen on mainnet, skip the test
+            // If the asset is already frozen on mainnet, skip the test
             if (_isFrozen(asset)) {
                 untestedReserves.push(asset);
                 continue;
@@ -408,10 +407,6 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
             poolConfig.setBorrowCap(asset, 68_719_476_735);  // MAX_BORROW_CAP
             vm.stopPrank();
 
-            // uint256 snapshot = vm.snapshot();
-
-            console.log("i", i);
-
             _checkUserActionsUnfrozen(
                 asset,
                 supplyAmount * 10 ** decimals,
@@ -419,11 +414,7 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
                 borrowAmount * 10 ** decimals,
                 repayAmount * 10 ** decimals
             );
-
-            // vm.revertTo(snapshot);  // Use snapshotting to avoid issues with siloed borrowing
         }
-
-
 
         assertEq(untestedReserves.length, 1);
         assertEq(untestedReserves[0],     0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);  // WBTC
@@ -432,18 +423,14 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
         vm.prank(randomUser);  // Demonstrate no ACL in spell
         FreezeSingleAssetSpell(freezeAllAssetsSpell).freeze();
 
-        // Check that protocol is working as expected after the freeze spell for each asset
+        // Check that protocol is working as expected after the freeze spell for all assets
         for (uint256 i = 0; i < reserves.length; i++) {
             if (reserves[i] == untestedReserves[0]) {
                 continue;
             }
 
-            console.log("i", i);
-
             address asset    = reserves[i];
             uint256 decimals = IERC20(asset).decimals();
-
-            // uint256 snapshot = vm.snapshot();
 
             // Check all assets, including unfrozen ones from start
             _checkUserActionsFrozen(
@@ -453,8 +440,6 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
                 borrowAmount * 10 ** decimals,
                 repayAmount * 10 ** decimals
             );
-
-            // vm.revertTo(snapshot);  // Use snapshotting to avoid issues with siloed borrowing
         }
 
         // Undo all freezes, including WBTC and make sure that protocol is back to working
@@ -466,8 +451,6 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
             vm.prank(SPARK_PROXY);
             poolConfig.setReserveFreeze(asset, false);
 
-            // uint256 snapshot = vm.snapshot();
-
             _checkUserActionsUnfrozen(
                 asset,
                 supplyAmount * 10 ** decimals,
@@ -475,9 +458,6 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
                 borrowAmount * 10 ** decimals,
                 repayAmount * 10 ** decimals
             );
-
-            // vm.revertTo(snapshot);  // Use snapshotting to avoid issues with siloed borrowing
-
         }
     }
 
