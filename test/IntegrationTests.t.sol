@@ -19,6 +19,8 @@ import { IAuthorityLike } from "test/Interfaces.sol";
 
 contract IntegrationTestsBase is Test {
 
+    using SafeERC20 for IERC20;
+
     address constant ACL_MANAGER   = 0xdA135Cd78A086025BcdC87B038a1C462032b510C;
     address constant AUTHORITY     = 0x0a3f6849f78076aefaDf113F5BED87720274dDC0;
     address constant DATA_PROVIDER = 0xFc21d6d146E6086B8359705C8b28512a983db0cb;
@@ -42,7 +44,7 @@ contract IntegrationTestsBase is Test {
     SparkLendFreezerMom    freezer;
 
     function setUp() public virtual {
-        vm.createSelectFork(getChain('mainnet').rpcUrl);
+        vm.createSelectFork(getChain('mainnet').rpcUrl, 18_572_000);
 
         freezer = new SparkLendFreezerMom(POOL_CONFIG, POOL);
 
@@ -70,6 +72,79 @@ contract IntegrationTestsBase is Test {
         vm.stopPrank();
 
         assertTrue(authority.hat() == spell);
+    }
+
+    function _checkUserActionsUnfrozen(
+        address asset,
+        uint256 supplyAmount,
+        uint256 withdrawAmount,
+        uint256 borrowAmount,
+        uint256 repayAmount
+    )
+        internal
+    {
+        assertEq(_isFrozen(asset), false);
+
+        deal(asset, sparkUser, supplyAmount);
+
+        // NOTE: For all checks, not checking pool.swapBorrowRateMode() since stable rate
+        //       isn't enabled on any reserve.
+
+        vm.startPrank(sparkUser);
+
+        IERC20(asset).safeApprove(POOL, type(uint256).max);
+
+        // User can supply and withdraw collateral always
+        pool.supply(asset, supplyAmount, sparkUser, 0);
+        pool.withdraw(asset, withdrawAmount, sparkUser);
+
+        // User can borrow and repay if borrowing is enabled
+        if (_borrowingEnabled(asset)) {
+            pool.borrow(asset, borrowAmount, 2, 0, sparkUser);
+            pool.repay(asset, repayAmount, 2, sparkUser);
+        }
+
+        vm.stopPrank();
+    }
+
+    function _checkUserActionsFrozen(
+        address asset,
+        uint256 supplyAmount,
+        uint256 withdrawAmount,
+        uint256 borrowAmount,
+        uint256 repayAmount
+    )
+        internal
+    {
+        assertEq(_isFrozen(asset), true);
+
+        vm.startPrank(sparkUser);
+
+        // User can't supply
+        vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
+        pool.supply(asset, supplyAmount, sparkUser, 0);
+
+        // User can't borrow
+        vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
+        pool.borrow(asset, borrowAmount, 2, 0, sparkUser);
+
+        // User can still withdraw collateral always
+        pool.withdraw(asset, withdrawAmount, sparkUser);
+
+        // User can repay if borrowing was enabled
+        if (_borrowingEnabled(asset)) {
+            pool.repay(asset, repayAmount, 2, sparkUser);
+        }
+
+        vm.stopPrank();
+    }
+
+    function _isFrozen(address asset) internal view returns (bool isFrozen) {
+        ( ,,,,,,,,, isFrozen ) = dataProvider.getReserveConfigurationData(asset);
+    }
+
+    function _borrowingEnabled(address asset) internal view returns (bool borrowingEnabled) {
+        ( ,,,,,, borrowingEnabled,,, ) = dataProvider.getReserveConfigurationData(asset);
     }
 
 }
@@ -142,117 +217,69 @@ contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
         vm.stopPrank();
 
         for (uint256 i = 0; i < reserves.length; i++) {
+            address asset = reserves[i];
+
             // If the asset is frozen on mainnet, skip the test
-            if (_isFrozen(reserves[i])) {
-                untestedReserves.push(reserves[i]);
+            if (_isFrozen(asset)) {
+                untestedReserves.push(asset);
                 continue;
             }
 
-            uint256 snapshot = vm.snapshot();
-            address freezeAssetSpell
-                = address(new FreezeSingleAssetSpell(address(freezer), reserves[i]));
+            uint256 decimals = IERC20(asset).decimals();
 
-            _testFreezeAsset(freezeAssetSpell, reserves[i]);
+            uint256 supplyAmount   = 1_000 * 10 ** decimals;
+            uint256 withdrawAmount = 1 * 10 ** decimals;
+            uint256 borrowAmount   = 1 * 10 ** decimals;
+            uint256 repayAmount    = 1 * 10 ** decimals / 2;  // 0.5
+
+            uint256 snapshot = vm.snapshot();
+
+            address freezeAssetSpell
+                = address(new FreezeSingleAssetSpell(address(freezer), asset));
+
+            // Setup spell, max out supply caps so that they aren't hit during test
+            _vote(freezeAssetSpell);
+
+            vm.startPrank(SPARK_PROXY);
+            poolConfig.setSupplyCap(asset, 68_719_476_735);  // MAX_SUPPLY_CAP
+            poolConfig.setBorrowCap(asset, 68_719_476_735);  // MAX_BORROW_CAP
+            vm.stopPrank();
+
+            _checkUserActionsUnfrozen(
+                asset,
+                supplyAmount,
+                withdrawAmount,
+                borrowAmount,
+                repayAmount
+            );
+
+            vm.prank(randomUser);  // Demonstrate no ACL in spell
+            FreezeSingleAssetSpell(freezeAssetSpell).freeze();
+
+            _checkUserActionsFrozen(
+                asset,
+                supplyAmount,
+                withdrawAmount,
+                borrowAmount,
+                repayAmount
+            );
+
+            vm.prank(SPARK_PROXY);
+            poolConfig.setReserveFreeze(asset, false);
+
+            _checkUserActionsUnfrozen(
+                asset,
+                supplyAmount,
+                withdrawAmount,
+                borrowAmount,
+                repayAmount
+            );
+
             vm.revertTo(snapshot);
         }
 
         assertEq(untestedReserves.length, 1);
         assertEq(untestedReserves[0],     0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);  // WBTC
-    }
-
-    function _testFreezeAsset(address spell, address asset) internal {
-        // 1. Setup spell, max out supply caps so that they aren't hit during test
-
-        _vote(spell);
-
-        vm.startPrank(SPARK_PROXY);
-        poolConfig.setSupplyCap(asset, 68_719_476_735);  // MAX_SUPPLY_CAP
-        poolConfig.setBorrowCap(asset, 68_719_476_735);  // MAX_BORROW_CAP
-        vm.stopPrank();
-
-        assertEq(_isFrozen(asset), false);
-
-        uint256 decimals = IERC20(asset).decimals();
-
-        uint256 supplyAmount   = 1_000 * 10 ** decimals;
-        uint256 withdrawAmount = 1 * 10 ** decimals;
-        uint256 borrowAmount   = 1 * 10 ** decimals;
-        uint256 repayAmount    = 1 * 10 ** decimals / 2;  // 0.5
-
-        deal(asset, sparkUser, supplyAmount * 2);  // Deal enough for 2 supplies
-
-        // 2. Check user actions before freeze
-        // NOTE: For all checks, not checking pool.swapBorrowRateMode() since stable rate
-        //       isn't enabled on any reserve.
-
-        vm.startPrank(sparkUser);
-
-        IERC20(asset).safeApprove(POOL, type(uint256).max);
-
-        // User can supply, borrow, repay, and withdraw
-        pool.supply(asset, supplyAmount, sparkUser, 0);
-        pool.withdraw(asset, withdrawAmount, sparkUser);
-
-        if (_borrowingEnabled(asset)) {
-            pool.borrow(asset, borrowAmount, 2, 0, sparkUser);
-            pool.repay(asset, repayAmount, 2, sparkUser);
-        }
-
-        vm.stopPrank();
-
-        // 3. Freeze market
-
-        vm.prank(randomUser);  // Demonstrate no ACL in spell
-        FreezeSingleAssetSpell(spell).freeze();
-
-        assertEq(_isFrozen(asset), true);
-
-        // 4. Check user actions after freeze
-
-        vm.startPrank(sparkUser);
-
-        // User can't supply
-        vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
-        pool.supply(asset, supplyAmount, sparkUser, 0);
-
-        // User can't borrow
-        vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
-        pool.borrow(asset, borrowAmount, 2, 0, sparkUser);
-
-        // User can still repay and withdraw
-        if (_borrowingEnabled(asset)) {
-            pool.repay(asset, repayAmount, 2, sparkUser);
-        }
-        pool.withdraw(asset, withdrawAmount, sparkUser);
-
-        vm.stopPrank();
-
-        // 5. Simulate spell after freeze, unfreezing market
-        vm.prank(SPARK_PROXY);
-        poolConfig.setReserveFreeze(asset, false);
-
-        assertEq(_isFrozen(asset), false);
-
-        // 6. Check user actions after unfreeze
-
-        vm.startPrank(sparkUser);
-
-        // User can supply, borrow, repay, and withdraw
-        pool.supply(asset, supplyAmount, sparkUser, 0);
-        pool.withdraw(asset, withdrawAmount, sparkUser);
-
-        if (_borrowingEnabled(asset)) {
-            pool.borrow(asset, borrowAmount, 2, 0, sparkUser);
-            pool.repay(asset, repayAmount, 2, sparkUser);
-        }
-    }
-
-    function _isFrozen(address asset) internal view returns (bool isFrozen) {
-        ( ,,,,,,,,, isFrozen ) = dataProvider.getReserveConfigurationData(asset);
-    }
-
-    function _borrowingEnabled(address asset) internal view returns (bool borrowingEnabled) {
-        ( ,,,,,, borrowingEnabled,,, ) = dataProvider.getReserveConfigurationData(asset);
     }
 
 }
