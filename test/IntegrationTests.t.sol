@@ -17,9 +17,7 @@ import { IPool }             from "lib/aave-v3-core/contracts/interfaces/IPool.s
 
 import { IAuthorityLike } from "test/Interfaces.sol";
 
-contract IntegrationTests is Test {
-
-    using SafeERC20 for IERC20;
+contract IntegrationTestsBase is Test {
 
     address constant ACL_MANAGER   = 0xdA135Cd78A086025BcdC87B038a1C462032b510C;
     address constant AUTHORITY     = 0x0a3f6849f78076aefaDf113F5BED87720274dDC0;
@@ -42,114 +40,14 @@ contract IntegrationTests is Test {
     IPoolDataProvider dataProvider = IPoolDataProvider(DATA_PROVIDER);
 
     SparkLendFreezerMom    freezer;
-    FreezeSingleAssetSpell freezeWethSpell;
 
-    function setUp() public {
+    function setUp() public virtual {
         vm.createSelectFork(getChain('mainnet').rpcUrl);
 
-        freezer         = new SparkLendFreezerMom(POOL_CONFIG, POOL);
-        freezeWethSpell = new FreezeSingleAssetSpell(address(freezer), WETH);
+        freezer = new SparkLendFreezerMom(POOL_CONFIG, POOL);
 
         freezer.setAuthority(AUTHORITY);
         freezer.setOwner(PAUSE_PROXY);
-    }
-
-    function test_cannotCallWithoutHat() external {
-        assertTrue(authority.hat() != address(freezeWethSpell));
-        assertTrue(
-            !authority.canCall(
-                address(freezeWethSpell),
-                address(freezer),
-                freezer.freezeMarket.selector
-            )
-        );
-
-        vm.expectRevert("SparkLendFreezerMom/not-authorized");
-        freezeWethSpell.freeze();
-    }
-
-    function test_cannotCallWithoutRoleSetup() external {
-        _vote(address(freezeWethSpell));
-
-        assertTrue(authority.hat() == address(freezeWethSpell));
-        assertTrue(
-            authority.canCall(
-                address(freezeWethSpell),
-                address(freezer),
-                freezer.freezeMarket.selector
-            )
-        );
-
-        vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
-        freezeWethSpell.freeze();
-    }
-
-    function test_freezeWethSpell() external {
-        _vote(address(freezeWethSpell));
-
-        vm.prank(SPARK_PROXY);
-        aclManager.addRiskAdmin(address(freezer));
-
-        assertEq(_isFrozen(WETH), false);
-
-        deal(WETH, sparkUser, 20 ether);  // Deal enough for 2 supplies
-
-        // 1. Check user actions before freeze
-        // NOTE: For all checks, not checking pool.swapBorrowRateMode() since stable rate
-        //       isn't enabled on any reserve.
-
-        vm.startPrank(sparkUser);
-
-        IERC20(WETH).safeApprove(POOL, type(uint256).max);
-
-        // User can supply, borrow, repay, and withdraw
-        pool.supply(WETH, 10 ether, sparkUser, 0);
-        pool.borrow(WETH, 1 ether, 2, 0, sparkUser);
-        pool.repay(WETH, 0.5 ether, 2, sparkUser);
-        pool.withdraw(WETH, 1 ether, sparkUser);
-
-        vm.stopPrank();
-
-        // 2. Freeze market
-
-        vm.prank(randomUser);  // Demonstrate no ACL in spell
-        freezeWethSpell.freeze();
-
-        assertEq(_isFrozen(WETH), true);
-
-        // 3. Check user actions after freeze
-
-        vm.startPrank(sparkUser);
-
-        // User can't supply
-        vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
-        pool.supply(WETH, 10 ether, sparkUser, 0);
-
-        // User can't borrow
-        vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
-        pool.borrow(WETH, 1 ether, 2, 0, sparkUser);
-
-        // User can still repay and withdraw
-        pool.repay(WETH, 0.5 ether, 2, sparkUser);
-        pool.withdraw(WETH, 1 ether, sparkUser);
-
-        vm.stopPrank();
-
-        // 4. Simulate spell after freeze, unfreezing market
-        vm.prank(SPARK_PROXY);
-        poolConfig.setReserveFreeze(WETH, false);
-
-        assertEq(_isFrozen(WETH), false);
-
-        // 5. Check user actions after unfreeze
-
-        vm.startPrank(sparkUser);
-
-        // User can supply, borrow, repay, and withdraw
-        pool.supply(WETH, 10 ether, sparkUser, 0);
-        pool.borrow(WETH, 1 ether, 2, 0, sparkUser);
-        pool.repay(WETH, 1 ether, 2, sparkUser);
-        pool.withdraw(WETH, 1 ether, sparkUser);
     }
 
     function _vote(address spell) internal {
@@ -174,8 +72,187 @@ contract IntegrationTests is Test {
         assertTrue(authority.hat() == spell);
     }
 
+}
+
+contract FreezeSingleAssetSpellFailures is IntegrationTestsBase {
+
+    FreezeSingleAssetSpell freezeAssetSpell;
+
+    function setUp() public override {
+        super.setUp();
+        freezeAssetSpell = new FreezeSingleAssetSpell(address(freezer), WETH);
+    }
+
+    function test_cannotCallWithoutHat() external {
+        assertTrue(authority.hat() != address(freezeAssetSpell));
+        assertTrue(
+            !authority.canCall(
+                address(freezeAssetSpell),
+                address(freezer),
+                freezer.freezeMarket.selector
+            )
+        );
+
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezeAssetSpell.freeze();
+    }
+
+    function test_cannotCallWithoutRoleSetup() external {
+        _vote(address(freezeAssetSpell));
+
+        assertTrue(authority.hat() == address(freezeAssetSpell));
+        assertTrue(
+            authority.canCall(
+                address(freezeAssetSpell),
+                address(freezer),
+                freezer.freezeMarket.selector
+            )
+        );
+
+        vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
+        freezeAssetSpell.freeze();
+    }
+
+}
+
+contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
+
+    using SafeERC20 for IERC20;
+
+    address[] public untestedReserves;
+
+    function setUp() public override {
+        super.setUp();
+        vm.prank(SPARK_PROXY);
+        aclManager.addRiskAdmin(address(freezer));
+    }
+
+    function test_freezeAssetSpell_allAssets() external {
+        address[] memory reserves = pool.getReservesList();
+
+        assertEq(reserves.length, 9);
+
+        deal(WETH, sparkUser, 1_000 ether);
+
+        // Since not all reserves are collateral, post enough WETH to ensure all reserves
+        // can be borrowed.
+        vm.startPrank(sparkUser);
+        IERC20(WETH).safeApprove(POOL, type(uint256).max);
+        pool.supply(WETH, 1_000 ether, sparkUser, 0);
+        vm.stopPrank();
+
+        for (uint256 i = 0; i < reserves.length; i++) {
+            // If the asset is frozen on mainnet, skip the test
+            if (_isFrozen(reserves[i])) {
+                untestedReserves.push(reserves[i]);
+                continue;
+            }
+
+            uint256 snapshot = vm.snapshot();
+            address freezeAssetSpell
+                = address(new FreezeSingleAssetSpell(address(freezer), reserves[i]));
+
+            _testFreezeAsset(freezeAssetSpell, reserves[i]);
+            vm.revertTo(snapshot);
+        }
+
+        assertEq(untestedReserves.length, 1);
+        assertEq(untestedReserves[0],     0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);  // WBTC
+    }
+
+    function _testFreezeAsset(address spell, address asset) internal {
+        // 1. Setup spell, max out supply caps so that they aren't hit during test
+
+        _vote(spell);
+
+        vm.startPrank(SPARK_PROXY);
+        poolConfig.setSupplyCap(asset, 68_719_476_735);  // MAX_SUPPLY_CAP
+        poolConfig.setBorrowCap(asset, 68_719_476_735);  // MAX_BORROW_CAP
+        vm.stopPrank();
+
+        assertEq(_isFrozen(asset), false);
+
+        uint256 decimals = IERC20(asset).decimals();
+
+        uint256 supplyAmount   = 1_000 * 10 ** decimals;
+        uint256 withdrawAmount = 1 * 10 ** decimals;
+        uint256 borrowAmount   = 1 * 10 ** decimals;
+        uint256 repayAmount    = 1 * 10 ** decimals / 2;  // 0.5
+
+        deal(asset, sparkUser, supplyAmount * 2);  // Deal enough for 2 supplies
+
+        // 2. Check user actions before freeze
+        // NOTE: For all checks, not checking pool.swapBorrowRateMode() since stable rate
+        //       isn't enabled on any reserve.
+
+        vm.startPrank(sparkUser);
+
+        IERC20(asset).safeApprove(POOL, type(uint256).max);
+
+        // User can supply, borrow, repay, and withdraw
+        pool.supply(asset, supplyAmount, sparkUser, 0);
+        pool.withdraw(asset, withdrawAmount, sparkUser);
+
+        if (_borrowingEnabled(asset)) {
+            pool.borrow(asset, borrowAmount, 2, 0, sparkUser);
+            pool.repay(asset, repayAmount, 2, sparkUser);
+        }
+
+        vm.stopPrank();
+
+        // 3. Freeze market
+
+        vm.prank(randomUser);  // Demonstrate no ACL in spell
+        FreezeSingleAssetSpell(spell).freeze();
+
+        assertEq(_isFrozen(asset), true);
+
+        // 4. Check user actions after freeze
+
+        vm.startPrank(sparkUser);
+
+        // User can't supply
+        vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
+        pool.supply(asset, supplyAmount, sparkUser, 0);
+
+        // User can't borrow
+        vm.expectRevert(bytes("28"));  // RESERVE_FROZEN
+        pool.borrow(asset, borrowAmount, 2, 0, sparkUser);
+
+        // User can still repay and withdraw
+        if (_borrowingEnabled(asset)) {
+            pool.repay(asset, repayAmount, 2, sparkUser);
+        }
+        pool.withdraw(asset, withdrawAmount, sparkUser);
+
+        vm.stopPrank();
+
+        // 5. Simulate spell after freeze, unfreezing market
+        vm.prank(SPARK_PROXY);
+        poolConfig.setReserveFreeze(asset, false);
+
+        assertEq(_isFrozen(asset), false);
+
+        // 6. Check user actions after unfreeze
+
+        vm.startPrank(sparkUser);
+
+        // User can supply, borrow, repay, and withdraw
+        pool.supply(asset, supplyAmount, sparkUser, 0);
+        pool.withdraw(asset, withdrawAmount, sparkUser);
+
+        if (_borrowingEnabled(asset)) {
+            pool.borrow(asset, borrowAmount, 2, 0, sparkUser);
+            pool.repay(asset, repayAmount, 2, sparkUser);
+        }
+    }
+
     function _isFrozen(address asset) internal view returns (bool isFrozen) {
         ( ,,,,,,,,, isFrozen ) = dataProvider.getReserveConfigurationData(asset);
+    }
+
+    function _borrowingEnabled(address asset) internal view returns (bool borrowingEnabled) {
+        ( ,,,,,, borrowingEnabled,,, ) = dataProvider.getReserveConfigurationData(asset);
     }
 
 }
