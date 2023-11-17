@@ -21,11 +21,11 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
     /*** Declarations and Constructor                                                           ***/
     /**********************************************************************************************/
 
-    address public immutable poolConfigurator;
-    address public immutable pool;
+    address public immutable override poolConfigurator;
+    address public immutable override pool;
 
-    address public authority;
-    address public owner;
+    address public override authority;
+    address public override owner;
 
     constructor(address poolConfigurator_, address pool_) {
         poolConfigurator = poolConfigurator_;
