@@ -47,7 +47,7 @@ contract IntegrationTestsBase is Test {
     SparkLendFreezerMom freezer;
 
     function setUp() public virtual {
-        vm.createSelectFork(getChain('mainnet').rpcUrl, 18_572_000);
+        vm.createSelectFork(getChain('mainnet').rpcUrl, 18_621_350);
 
         freezer = new SparkLendFreezerMom(POOL_CONFIG, POOL);
 
@@ -95,8 +95,8 @@ contract IntegrationTestsBase is Test {
 
         // If asset is not enabled as collateral, post enough WETH to ensure that the
         // reserve asset can be borrowed.
-        // TODO: Remove LTV check once DAI spell goes through
-        if (!_usageAsCollateralEnabled(asset) || _ltv(asset) == 1) {
+        // NOTE: LTV check is necessary because LT of DAI is still 1.
+        if (!_usageAsCollateralEnabled(asset) || _ltv(asset) == 0) {
             _supplyWethCollateral(sparkUser, 1_000 ether);
         }
 
@@ -304,6 +304,8 @@ contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
                 continue;
             }
 
+            assertEq(untestedReserves.length, 0);
+
             uint256 decimals = IERC20(asset).decimals();
 
             uint256 supplyAmount   = 1_000 * 10 ** decimals;
@@ -320,8 +322,8 @@ contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
             _vote(freezeAssetSpell);
 
             vm.startPrank(SPARK_PROXY);
-            poolConfig.setSupplyCap(asset, 68_719_476_735);  // MAX_SUPPLY_CAP
-            poolConfig.setBorrowCap(asset, 68_719_476_735);  // MAX_BORROW_CAP
+            poolConfig.setSupplyCap(asset, 0);
+            poolConfig.setBorrowCap(asset, 0);
             vm.stopPrank();
 
             _checkUserActionsUnfrozen(
@@ -356,9 +358,6 @@ contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
 
             vm.revertTo(snapshot);
         }
-
-        assertEq(untestedReserves.length, 1);
-        assertEq(untestedReserves[0],     0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);  // WBTC
     }
 
 }
@@ -403,8 +402,8 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
 
             // Max out supply caps for this asset so that they aren't hit during test
             vm.startPrank(SPARK_PROXY);
-            poolConfig.setSupplyCap(asset, 68_719_476_735);  // MAX_SUPPLY_CAP
-            poolConfig.setBorrowCap(asset, 68_719_476_735);  // MAX_BORROW_CAP
+            poolConfig.setSupplyCap(asset, 0);
+            poolConfig.setBorrowCap(asset, 0);
             vm.stopPrank();
 
             _checkUserActionsUnfrozen(
@@ -416,8 +415,7 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
             );
         }
 
-        assertEq(untestedReserves.length, 1);
-        assertEq(untestedReserves[0],     0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);  // WBTC
+        assertEq(untestedReserves.length, 0);
 
         // Freeze all assets in the protocol
         vm.prank(randomUser);  // Demonstrate no ACL in spell
@@ -425,10 +423,6 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
 
         // Check that protocol is working as expected after the freeze spell for all assets
         for (uint256 i = 0; i < reserves.length; i++) {
-            if (reserves[i] == untestedReserves[0]) {
-                continue;
-            }
-
             address asset    = reserves[i];
             uint256 decimals = IERC20(asset).decimals();
 
