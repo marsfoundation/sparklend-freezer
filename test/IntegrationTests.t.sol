@@ -235,6 +235,28 @@ contract FreezeSingleAssetSpellFailures is IntegrationTestsBase {
         freezeAssetSpell.freeze();
     }
 
+    function test_cannotCallTwice() external {
+        vm.prank(SPARK_PROXY);
+        aclManager.addRiskAdmin(address(freezer));
+
+        _vote(address(freezeAssetSpell));
+
+        assertTrue(authority.hat() == address(freezeAssetSpell));
+        assertTrue(
+            authority.canCall(
+                address(freezeAssetSpell),
+                address(freezer),
+                freezer.freezeMarket.selector
+            )
+        );
+
+        vm.startPrank(randomUser);  // Demonstrate no ACL in spell
+        freezeAssetSpell.freeze();
+
+        vm.expectRevert("FreezeSingleAssetSpell/already-executed");
+        freezeAssetSpell.freeze();
+    }
+
 }
 
 contract FreezeAllAssetsSpellFailures is IntegrationTestsBase {
@@ -273,6 +295,28 @@ contract FreezeAllAssetsSpellFailures is IntegrationTestsBase {
         );
 
         vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
+        freezeAllAssetsSpell.freeze();
+    }
+
+    function test_cannotCallTwice() external {
+        vm.prank(SPARK_PROXY);
+        aclManager.addRiskAdmin(address(freezer));
+
+        _vote(address(freezeAllAssetsSpell));
+
+        assertTrue(authority.hat() == address(freezeAllAssetsSpell));
+        assertTrue(
+            authority.canCall(
+                address(freezeAllAssetsSpell),
+                address(freezer),
+                freezer.freezeMarket.selector
+            )
+        );
+
+        vm.startPrank(randomUser);  // Demonstrate no ACL in spell
+        freezeAllAssetsSpell.freeze();
+
+        vm.expectRevert("FreezeAllAssetsSpell/already-executed");
         freezeAllAssetsSpell.freeze();
     }
 
@@ -334,8 +378,12 @@ contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
                 repayAmount
             );
 
+            assertEq(FreezeSingleAssetSpell(freezeAssetSpell).executed(), false);
+
             vm.prank(randomUser);  // Demonstrate no ACL in spell
             FreezeSingleAssetSpell(freezeAssetSpell).freeze();
+
+            assertEq(FreezeSingleAssetSpell(freezeAssetSpell).executed(), true);
 
             _checkUserActionsFrozen(
                 asset,
@@ -417,9 +465,13 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
 
         assertEq(untestedReserves.length, 0);
 
+        assertEq(FreezeAllAssetsSpell(freezeAllAssetsSpell).executed(), false);
+
         // Freeze all assets in the protocol
         vm.prank(randomUser);  // Demonstrate no ACL in spell
-        FreezeSingleAssetSpell(freezeAllAssetsSpell).freeze();
+        FreezeAllAssetsSpell(freezeAllAssetsSpell).freeze();
+
+        assertEq(FreezeAllAssetsSpell(freezeAllAssetsSpell).executed(), true);
 
         // Check that protocol is working as expected after the freeze spell for all assets
         for (uint256 i = 0; i < reserves.length; i++) {

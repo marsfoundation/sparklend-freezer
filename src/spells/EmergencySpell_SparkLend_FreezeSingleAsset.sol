@@ -8,13 +8,17 @@ contract EmergencySpell_SparkLend_FreezeSingleAsset {
     address public immutable sparkLendFreezerMom;
     address public immutable reserve;
 
+    bool public executed;
+
     constructor(address sparklendFreezerMom_, address reserve_) {
         sparkLendFreezerMom = sparklendFreezerMom_;
         reserve             = reserve_;
     }
 
     function freeze() external {
+        require(!executed, "FreezeSingleAssetSpell/already-executed");
         ISparkLendFreezerMom(sparkLendFreezerMom).freezeMarket(reserve);
+        executed = true;
     }
 
 }
