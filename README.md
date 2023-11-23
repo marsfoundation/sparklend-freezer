@@ -1,76 +1,29 @@
-# <TITLE>
+# SparkLend Freezer
 
-<!-- ![Foundry CI](https://github.com/{org}/{repo}/actions/workflows/ci.yml/badge.svg)
+![Foundry CI](https://github.com/marsfoundation/sparklend-freezer/actions/workflows/ci.yml/badge.svg)
 [![Foundry][foundry-badge]][foundry]
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://github.com/{org}/{repo}/blob/master/LICENSE) -->
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://github.com/marsfoundation/sparklend-freezer/blob/master/LICENSE)
 
 [foundry]: https://getfoundry.sh/
 [foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+## Overview
 
-Foundry consists of:
+This repo contains three contracts:
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+### `src/SparkLendFreezerMom.sol`
+A contract that will have `RISK_ADMIN_ROLE` in SparkLend, and has two functions:
+- `freezeAllMarkets`: Freezes all markets in SparkLend, callable by the `hat` in the Chief or by the PauseProxy in MakerDAO.
+- `freezeMarket`: Freezes a single market in SparkLend, callable by the `hat` in the Chief or by the PauseProxy in MakerDAO.
 
-## Documentation
+### `src/spells/EmergencySpell_SparkLend_FreezeAllAssets.sol`
+A spell that can be set as the `hat` in the Chief to freeze all markets in SparkLend by calling `freezeAllMarkets` in `SparkLendFreezerMom`.
 
-https://book.getfoundry.sh/
+### `src/spells/EmergencySpell_SparkLend_FreezeSingleAsset.sol`
+A spell that can be set as the `hat` in the Chief to freeze all markets in SparkLend by calling `freezeMarket` in `SparkLendFreezerMom`. A separate spell is needed for each market, with the reserve being declared in the constructor.
 
-## Usage
-
-### Build
-
-```shell
-$ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+## Testing
+To run the tests, run `forge test`.
 
 ***
 *The IP in this repository was assigned to Mars SPC Limited in respect of the MarsOne SP*
