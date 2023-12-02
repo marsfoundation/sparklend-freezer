@@ -37,6 +37,18 @@ interface ISparkLendFreezerMom {
      */
     event SetAuthority(address indexed oldAuthority, address indexed newAuthority);
 
+    /**
+     *  @dev   Authorize a contract to trigger this mom.
+     *  @param usr The address to authorize.
+     */
+    event Rely(address indexed usr);
+
+    /**
+     *  @dev   Deauthorize a contract to trigger this mom.
+     *  @param usr The address to deauthorize.
+     */
+    event Deny(address indexed usr);
+
     /**********************************************************************************************/
     /*** Storage Variables                                                                      ***/
     /**********************************************************************************************/
@@ -65,6 +77,12 @@ interface ISparkLendFreezerMom {
      */
     function owner() external view returns (address);
 
+    /**
+     *  @dev    Returns if an address is authroized to trigger this mom (or not).
+     *  @return 1 if authorized, 0 if not.
+     */
+    function wards(address usr) external view returns (uint256);
+
     /**********************************************************************************************/
     /*** Owner Functions                                                                        ***/
     /**********************************************************************************************/
@@ -80,6 +98,18 @@ interface ISparkLendFreezerMom {
      * @param owner The address of the new owner.
      */
     function setOwner(address owner) external;
+
+    /**
+     *  @dev   Authorize a contract to trigger this mom.
+     *  @param usr The address to authorize.
+     */
+    function rely(address usr) external;
+
+    /**
+     *  @dev   Deauthorize a contract to trigger this mom.
+     *  @param usr The address to deauthorize.
+     */
+    function deny(address usr) external;
 
     /**********************************************************************************************/
     /*** Auth Functions                                                                         ***/

@@ -21,6 +21,8 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
 
     address public override authority;
     address public override owner;
+    
+    mapping(address => uint256) public override wards;
 
     constructor(address poolConfigurator_, address pool_) {
         poolConfigurator = poolConfigurator_;
@@ -57,6 +59,16 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
     function setOwner(address owner_) external override onlyOwner {
         emit SetOwner(owner, owner_);
         owner = owner_;
+    }
+
+    function rely(address usr) external override onlyOwner {
+        wards[usr] = 1;
+        emit Rely(usr);
+    }
+
+    function deny(address usr) external override onlyOwner {
+        wards[usr] = 0;
+        emit Deny(usr);
     }
 
     /**********************************************************************************************/
@@ -100,7 +112,7 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
     function isAuthorized(address src, bytes4 sig) internal view returns (bool) {
         if (src == address(this)) {
             return true;
-        } else if (src == owner) {
+        } else if (src == owner || wards[src] == 1) {
             return true;
         } else if (authority == address(0)) {
             return false;
