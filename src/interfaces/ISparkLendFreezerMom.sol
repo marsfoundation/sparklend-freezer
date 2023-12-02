@@ -11,8 +11,17 @@ interface ISparkLendFreezerMom {
      *  @dev   Event to log the freezing of a given market in SparkLend.
      *  @dev   NOTE: This event will fire even if the market is already frozen.
      *  @param reserve The address of the market reserve.
+     *  @param freeze  A boolean indicating whether the market is frozen or unfrozen.
      */
-    event FreezeMarket(address indexed reserve);
+    event FreezeMarket(address indexed reserve, bool freeze);
+
+    /**
+     *  @dev   Event to log the pausing of a given market in SparkLend.
+     *  @dev   NOTE: This event will fire even if the market is already paused.
+     *  @param reserve The address of the market reserve.
+     *  @param pause   A boolean indicating whether the market is paused or unpaused.
+     */
+    event PauseMarket(address indexed reserve, bool pause);
 
     /**
      *  @dev   Event to log the setting of a new owner.
@@ -82,15 +91,36 @@ interface ISparkLendFreezerMom {
      *         to call the function. Note that the `authority` in this contract is assumed to be
      *         the Chief in the MakerDAO protocol.
      *  @param reserve The address of the market to freeze.
+     *  @param freeze  A boolean indicating whether to freeze or unfreeze the market.
      */
-    function freezeMarket(address reserve) external;
+    function freezeMarket(address reserve, bool freeze) external;
 
     /**
      *  @dev Function to freeze all markets. Permissioned using the isAuthorized function
      *       which allows the owner, the freezer contract itself, or the `hat` in the Chief
      *       to call the function. Note that the `authority` in this contract is assumed to be
      *       the Chief in the MakerDAO protocol.
+     *  @param freeze A boolean indicating whether to freeze or unfreeze the market.
      */
-    function freezeAllMarkets() external;
+    function freezeAllMarkets(bool freeze) external;
+
+    /**
+     *  @dev   Function to pause a specified market. Permissioned using the isAuthorized function
+     *         which allows the owner, the freezer contract itself, or the `hat` in the Chief
+     *         to call the function. Note that the `authority` in this contract is assumed to be
+     *         the Chief in the MakerDAO protocol.
+     *  @param reserve The address of the market to pause.
+     *  @param pause   A boolean indicating whether to pause or unpause the market.
+     */
+    function pauseMarket(address reserve, bool pause) external;
+
+    /**
+     *  @dev Function to pause all markets. Permissioned using the isAuthorized function
+     *       which allows the owner, the freezer contract itself, or the `hat` in the Chief
+     *       to call the function. Note that the `authority` in this contract is assumed to be
+     *       the Chief in the MakerDAO protocol.
+     *  @param pause A boolean indicating whether to pause or unpause the market.
+     */
+    function pauseAllMarkets(bool pause) external;
 
 }

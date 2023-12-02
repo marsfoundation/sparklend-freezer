@@ -18,7 +18,7 @@ contract EmergencySpell_SparkLend_FreezeSingleAsset {
     function freeze() external {
         require(!executed, "FreezeSingleAssetSpell/already-executed");
         executed = true;
-        ISparkLendFreezerMom(sparkLendFreezerMom).freezeMarket(reserve);
+        ISparkLendFreezerMom(sparkLendFreezerMom).freezeMarket(reserve, true);
     }
 
 }

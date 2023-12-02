@@ -87,7 +87,9 @@ contract FreezeAllMarketsTests is SparkLendFreezerMomUnitTestBase {
 
     function test_freezeAllMarkets_noAuth() public {
         vm.expectRevert("SparkLendFreezerMom/not-authorized");
-        freezer.freezeAllMarkets();
+        freezer.freezeAllMarkets(false);
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezer.freezeAllMarkets(true);
     }
 
     function test_freezeAllMarkets() public {
@@ -113,7 +115,13 @@ contract FreezeAllMarketsTests is SparkLendFreezerMomUnitTestBase {
         vm.expectCall(pool,         abi.encodePacked(poolSig));
         vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset1, true)));
         vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset2, true)));
-        freezer.freezeAllMarkets();
+        freezer.freezeAllMarkets(true);
+
+        vm.prank(caller);
+        vm.expectCall(pool,         abi.encodePacked(poolSig));
+        vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset1, false)));
+        vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset2, false)));
+        freezer.freezeAllMarkets(false);
     }
 
 }
@@ -124,7 +132,9 @@ contract FreezeMarketTests is SparkLendFreezerMomUnitTestBase {
 
     function test_freezeMarket_noAuth() public {
         vm.expectRevert("SparkLendFreezerMom/not-authorized");
-        freezer.freezeMarket(reserve);
+        freezer.freezeMarket(reserve, false);
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezer.freezeMarket(reserve, true);
     }
 
     function test_freezeMarket() public {
@@ -141,7 +151,88 @@ contract FreezeMarketTests is SparkLendFreezerMomUnitTestBase {
 
         vm.prank(caller);
         vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(reserve, true)));
-        freezer.freezeMarket(reserve);
+        freezer.freezeMarket(reserve, true);
+
+        vm.prank(caller);
+        vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(reserve, false)));
+        freezer.freezeMarket(reserve, false);
+    }
+
+}
+
+contract PauseAllMarketsTests is SparkLendFreezerMomUnitTestBase {
+
+    function test_pauseAllMarkets_noAuth() public {
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezer.pauseAllMarkets(false);
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezer.pauseAllMarkets(true);
+    }
+
+    function test_pauseAllMarkets() public {
+        address caller = makeAddr("caller");
+
+        authority.__setCanCall(
+            caller,
+            address(freezer),
+            freezer.pauseAllMarkets.selector,
+            true
+        );
+
+        address asset1 = makeAddr("asset1");
+        address asset2 = makeAddr("asset2");
+
+        PoolMock(pool).__addAsset(asset1);
+        PoolMock(pool).__addAsset(asset2);
+
+        bytes4 poolSig   = PoolMock.getReservesList.selector;
+        bytes4 configSig = ConfiguratorMock.setReservePause.selector;
+
+        vm.prank(caller);
+        vm.expectCall(pool,         abi.encodePacked(poolSig));
+        vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset1, true)));
+        vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset2, true)));
+        freezer.pauseAllMarkets(true);
+
+        vm.prank(caller);
+        vm.expectCall(pool,         abi.encodePacked(poolSig));
+        vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset1, false)));
+        vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(asset2, false)));
+        freezer.pauseAllMarkets(false);
+    }
+
+}
+
+contract PauseMarketTests is SparkLendFreezerMomUnitTestBase {
+
+    address reserve = makeAddr("reserve");
+
+    function test_pauseMarket_noAuth() public {
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezer.pauseMarket(reserve, false);
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezer.pauseMarket(reserve, true);
+    }
+
+    function test_pauseMarket() public {
+        address caller = makeAddr("caller");
+
+        authority.__setCanCall(
+            caller,
+            address(freezer),
+            freezer.pauseMarket.selector,
+            true
+        );
+
+        bytes4 configSig = ConfiguratorMock.setReservePause.selector;
+
+        vm.prank(caller);
+        vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(reserve, true)));
+        freezer.pauseMarket(reserve, true);
+
+        vm.prank(caller);
+        vm.expectCall(configurator, abi.encodePacked(configSig, abi.encode(reserve, false)));
+        freezer.pauseMarket(reserve, false);
     }
 
 }
@@ -202,7 +293,8 @@ contract SparkLendFreezerMomIsAuthorizedTest is Test {
 
 contract EventTests is SparkLendFreezerMomUnitTestBase {
 
-    event FreezeMarket(address indexed reserve);
+    event FreezeMarket(address indexed reserve, bool freeze);
+    event PauseMarket(address indexed reserve, bool pause);
     event SetOwner(address indexed oldOwner, address indexed newOwner);
     event SetAuthority(address indexed oldAuthority, address indexed newAuthority);
 
@@ -236,8 +328,12 @@ contract EventTests is SparkLendFreezerMomUnitTestBase {
         );
 
         vm.prank(caller);
-        emit FreezeMarket(asset);
-        freezer.freezeMarket(asset);
+        emit FreezeMarket(asset, true);
+        freezer.freezeMarket(asset, true);
+
+        vm.prank(caller);
+        emit FreezeMarket(asset, false);
+        freezer.freezeMarket(asset, false);
     }
 
     function test_freezeAllMarkets_eventData() public {
@@ -258,10 +354,68 @@ contract EventTests is SparkLendFreezerMomUnitTestBase {
 
         vm.prank(caller);
         vm.expectEmit(address(freezer));
-        emit FreezeMarket(asset1);
+        emit FreezeMarket(asset1, true);
         vm.expectEmit(address(freezer));
-        emit FreezeMarket(asset2);
-        freezer.freezeAllMarkets();
+        emit FreezeMarket(asset2, true);
+        freezer.freezeAllMarkets(true);
+
+        vm.prank(caller);
+        vm.expectEmit(address(freezer));
+        emit FreezeMarket(asset1, false);
+        vm.expectEmit(address(freezer));
+        emit FreezeMarket(asset2, false);
+        freezer.freezeAllMarkets(false);
+    }
+
+    function test_pauseMarket_eventData() public {
+        address caller = makeAddr("caller");
+        address asset  = makeAddr("asset");
+
+        authority.__setCanCall(
+            caller,
+            address(freezer),
+            freezer.pauseMarket.selector,
+            true
+        );
+
+        vm.prank(caller);
+        emit PauseMarket(asset, true);
+        freezer.pauseMarket(asset, true);
+
+        vm.prank(caller);
+        emit PauseMarket(asset, false);
+        freezer.pauseMarket(asset, false);
+    }
+
+    function test_pauseAllMarkets_eventData() public {
+        address caller = makeAddr("caller");
+
+        authority.__setCanCall(
+            caller,
+            address(freezer),
+            freezer.pauseAllMarkets.selector,
+            true
+        );
+
+        address asset1 = makeAddr("asset1");
+        address asset2 = makeAddr("asset2");
+
+        PoolMock(pool).__addAsset(asset1);
+        PoolMock(pool).__addAsset(asset2);
+
+        vm.prank(caller);
+        vm.expectEmit(address(freezer));
+        emit PauseMarket(asset1, true);
+        vm.expectEmit(address(freezer));
+        emit PauseMarket(asset2, true);
+        freezer.pauseAllMarkets(true);
+
+        vm.prank(caller);
+        vm.expectEmit(address(freezer));
+        emit PauseMarket(asset1, false);
+        vm.expectEmit(address(freezer));
+        emit PauseMarket(asset2, false);
+        freezer.pauseAllMarkets(false);
     }
 
 }
