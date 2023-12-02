@@ -117,7 +117,7 @@ interface ISparkLendFreezerMom {
 
     /**
      *  @dev   Function to freeze a specified market. Permissioned using the isAuthorized function
-     *         which allows the owner, the freezer contract itself, or the `hat` in the Chief
+     *         which allows the owner, a ward, the freezer contract itself, or the `hat` in the Chief
      *         to call the function. Note that the `authority` in this contract is assumed to be
      *         the Chief in the MakerDAO protocol.
      *  @param reserve The address of the market to freeze.
@@ -127,7 +127,7 @@ interface ISparkLendFreezerMom {
 
     /**
      *  @dev Function to freeze all markets. Permissioned using the isAuthorized function
-     *       which allows the owner, the freezer contract itself, or the `hat` in the Chief
+     *       which allows the owner, a ward, the freezer contract itself, or the `hat` in the Chief
      *       to call the function. Note that the `authority` in this contract is assumed to be
      *       the Chief in the MakerDAO protocol.
      *  @param freeze A boolean indicating whether to freeze or unfreeze the market.
@@ -136,7 +136,7 @@ interface ISparkLendFreezerMom {
 
     /**
      *  @dev   Function to pause a specified market. Permissioned using the isAuthorized function
-     *         which allows the owner, the freezer contract itself, or the `hat` in the Chief
+     *         which allows the owner, a ward, the freezer contract itself, or the `hat` in the Chief
      *         to call the function. Note that the `authority` in this contract is assumed to be
      *         the Chief in the MakerDAO protocol.
      *  @param reserve The address of the market to pause.
@@ -146,7 +146,7 @@ interface ISparkLendFreezerMom {
 
     /**
      *  @dev Function to pause all markets. Permissioned using the isAuthorized function
-     *       which allows the owner, the freezer contract itself, or the `hat` in the Chief
+     *       which allows the owner, a ward, the freezer contract itself, or the `hat` in the Chief
      *       to call the function. Note that the `authority` in this contract is assumed to be
      *       the Chief in the MakerDAO protocol.
      *  @param pause A boolean indicating whether to pause or unpause the market.
