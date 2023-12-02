@@ -216,7 +216,7 @@ contract FreezeSingleAssetSpellFailures is IntegrationTestsBase {
         );
 
         vm.expectRevert("SparkLendFreezerMom/not-authorized");
-        freezeAssetSpell.freeze();
+        freezeAssetSpell.execute();
     }
 
     function test_cannotCallWithoutRoleSetup() external {
@@ -232,7 +232,7 @@ contract FreezeSingleAssetSpellFailures is IntegrationTestsBase {
         );
 
         vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
-        freezeAssetSpell.freeze();
+        freezeAssetSpell.execute();
     }
 
     function test_cannotCallTwice() external {
@@ -251,10 +251,10 @@ contract FreezeSingleAssetSpellFailures is IntegrationTestsBase {
         );
 
         vm.startPrank(randomUser);  // Demonstrate no ACL in spell
-        freezeAssetSpell.freeze();
+        freezeAssetSpell.execute();
 
         vm.expectRevert("FreezeSingleAssetSpell/already-executed");
-        freezeAssetSpell.freeze();
+        freezeAssetSpell.execute();
     }
 
 }
@@ -279,7 +279,7 @@ contract FreezeAllAssetsSpellFailures is IntegrationTestsBase {
         );
 
         vm.expectRevert("SparkLendFreezerMom/not-authorized");
-        freezeAllAssetsSpell.freeze();
+        freezeAllAssetsSpell.execute();
     }
 
     function test_cannotCallWithoutRoleSetup() external {
@@ -295,7 +295,7 @@ contract FreezeAllAssetsSpellFailures is IntegrationTestsBase {
         );
 
         vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
-        freezeAllAssetsSpell.freeze();
+        freezeAllAssetsSpell.execute();
     }
 
     function test_cannotCallTwice() external {
@@ -314,10 +314,10 @@ contract FreezeAllAssetsSpellFailures is IntegrationTestsBase {
         );
 
         vm.startPrank(randomUser);  // Demonstrate no ACL in spell
-        freezeAllAssetsSpell.freeze();
+        freezeAllAssetsSpell.execute();
 
         vm.expectRevert("FreezeAllAssetsSpell/already-executed");
-        freezeAllAssetsSpell.freeze();
+        freezeAllAssetsSpell.execute();
     }
 
 }
@@ -381,7 +381,7 @@ contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
             assertEq(FreezeSingleAssetSpell(freezeAssetSpell).executed(), false);
 
             vm.prank(randomUser);  // Demonstrate no ACL in spell
-            FreezeSingleAssetSpell(freezeAssetSpell).freeze();
+            FreezeSingleAssetSpell(freezeAssetSpell).execute();
 
             assertEq(FreezeSingleAssetSpell(freezeAssetSpell).executed(), true);
 
@@ -469,7 +469,7 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
 
         // Freeze all assets in the protocol
         vm.prank(randomUser);  // Demonstrate no ACL in spell
-        FreezeAllAssetsSpell(freezeAllAssetsSpell).freeze();
+        FreezeAllAssetsSpell(freezeAllAssetsSpell).execute();
 
         assertEq(FreezeAllAssetsSpell(freezeAllAssetsSpell).executed(), true);
 

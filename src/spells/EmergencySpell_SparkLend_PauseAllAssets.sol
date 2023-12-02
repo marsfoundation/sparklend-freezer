@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import { ISparkLendFreezerMom } from "src/interfaces/ISparkLendFreezerMom.sol";
 
-contract EmergencySpell_SparkLend_FreezeAllAssets {
+contract EmergencySpell_SparkLend_PauseAllAssets {
 
     address public immutable sparkLendFreezerMom;
 
@@ -13,10 +13,10 @@ contract EmergencySpell_SparkLend_FreezeAllAssets {
         sparkLendFreezerMom = sparklendFreezerMom_;
     }
 
-    function execute() external {
-        require(!executed, "FreezeAllAssetsSpell/already-executed");
+    function freeze() external {
+        require(!executed, "PauseAllAssetsSpell/already-executed");
         executed = true;
-        ISparkLendFreezerMom(sparkLendFreezerMom).freezeAllMarkets(true);
+        ISparkLendFreezerMom(sparkLendFreezerMom).pauseAllMarkets(true);
     }
 
 }
