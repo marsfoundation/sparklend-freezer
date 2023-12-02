@@ -12,7 +12,7 @@
 This repo contains five contracts:
 
 ### `src/SparkLendFreezerMom.sol`
-A contract that will have `RISK_ADMIN_ROLE` in SparkLend, and has four functions:
+A contract that will have `RISK_ADMIN_ROLE` & `EMERGENCY_ADMIN_ROLE` in SparkLend, and has four functions:
 - `freezeAllMarkets`: Freezes all markets in SparkLend, callable by the `hat` in the Chief, an authorized contract (ward) or by the PauseProxy in MakerDAO.
 - `freezeMarket`: Freezes a single market in SparkLend, callable by the `hat` in the Chief, an authorized contract (ward) or by the PauseProxy in MakerDAO.
 - `pauseAllMarkets`: Pauses all markets in SparkLend, callable by the `hat` in the Chief, an authorized contract (ward) or by the PauseProxy in MakerDAO.
