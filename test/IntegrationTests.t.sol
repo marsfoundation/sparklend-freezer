@@ -6,13 +6,21 @@ import "forge-std/Test.sol";
 import { SafeERC20 } from "lib/erc20-helpers/src/SafeERC20.sol";
 import { IERC20 }    from "lib/erc20-helpers/src/interfaces/IERC20.sol";
 
+import { IExecuteOnceSpell }   from "src/interfaces/IExecuteOnceSpell.sol";
 import { SparkLendFreezerMom } from "src/SparkLendFreezerMom.sol";
+
 
 import { EmergencySpell_SparkLend_FreezeSingleAsset as FreezeSingleAssetSpell }
     from "src/spells/EmergencySpell_SparkLend_FreezeSingleAsset.sol";
 
 import { EmergencySpell_SparkLend_FreezeAllAssets as FreezeAllAssetsSpell }
     from "src/spells/EmergencySpell_SparkLend_FreezeAllAssets.sol";
+
+import { EmergencySpell_SparkLend_PauseSingleAsset as PauseSingleAssetSpell }
+    from "src/spells/EmergencySpell_SparkLend_PauseSingleAsset.sol";
+
+import { EmergencySpell_SparkLend_PauseAllAssets as PauseAllAssetsSpell }
+    from "src/spells/EmergencySpell_SparkLend_PauseAllAssets.sol";
 
 import { IACLManager }       from "lib/aave-v3-core/contracts/interfaces/IACLManager.sol";
 import { IPoolConfigurator } from "lib/aave-v3-core/contracts/interfaces/IPoolConfigurator.sol";
@@ -47,7 +55,7 @@ contract IntegrationTestsBase is Test {
     SparkLendFreezerMom freezer;
 
     function setUp() public virtual {
-        vm.createSelectFork(getChain('mainnet').rpcUrl, 18_621_350);
+        vm.createSelectFork(getChain('mainnet').rpcUrl, 18_706_418);
 
         freezer = new SparkLendFreezerMom(POOL_CONFIG, POOL);
 
@@ -55,31 +63,9 @@ contract IntegrationTestsBase is Test {
         freezer.setOwner(PAUSE_PROXY);
     }
 
-    function _vote(address spell) internal {
-        uint256 amount = 1_000_000 ether;
-
-        deal(MKR, mkrWhale, amount);
-
-        vm.startPrank(mkrWhale);
-        IERC20(MKR).approve(AUTHORITY, amount);
-        authority.lock(amount);
-
-        address[] memory slate = new address[](1);
-        slate[0] = spell;
-        authority.vote(slate);
-
-        vm.roll(block.number + 1);
-
-        authority.lift(spell);
-
-        vm.stopPrank();
-
-        assertTrue(authority.hat() == spell);
-    }
-
     // NOTE: For all checks, not checking pool.swapBorrowRateMode() since stable rate
     //       isn't enabled on any reserve.
-    function _checkUserActionsUnfrozen(
+    function _checkAllUserActionsAvailable(
         address asset,
         uint256 supplyAmount,
         uint256 withdrawAmount,
@@ -89,6 +75,7 @@ contract IntegrationTestsBase is Test {
         internal
     {
         assertEq(_isFrozen(asset), false);
+        assertEq(_isPaused(asset), false);
 
         // Make a new address for each asset to avoid side effects, eg. siloed borrowing
         address sparkUser = makeAddr(string.concat(IERC20(asset).name(), " user"));
@@ -153,6 +140,43 @@ contract IntegrationTestsBase is Test {
         vm.stopPrank();
     }
 
+    function _checkUserActionsPaused(
+        address asset,
+        uint256 supplyAmount,
+        uint256 withdrawAmount,
+        uint256 borrowAmount,
+        uint256 repayAmount
+    )
+        internal
+    {
+        assertEq(_isPaused(asset), true);
+
+        // Use same address that borrowed when unfrozen to repay debt
+        address sparkUser = makeAddr(string.concat(IERC20(asset).name(), " user"));
+
+        vm.startPrank(sparkUser);
+
+        // User can't supply
+        vm.expectRevert(bytes("29"));  // RESERVE_PAUSED
+        pool.supply(asset, supplyAmount, sparkUser, 0);
+
+        // User can't borrow
+        vm.expectRevert(bytes("29"));  // RESERVE_PAUSED
+        pool.borrow(asset, borrowAmount, 2, 0, sparkUser);
+
+        // User can't withdraw collateral
+        vm.expectRevert(bytes("29"));  // RESERVE_PAUSED
+        pool.withdraw(asset, withdrawAmount, sparkUser);
+
+        // User can't repay
+        if (_borrowingEnabled(asset)) {
+            vm.expectRevert(bytes("29"));  // RESERVE_PAUSED
+            pool.repay(asset, repayAmount, 2, sparkUser);
+        }
+
+        vm.stopPrank();
+    }
+
     function _supplyWethCollateral(address user, uint256 amount) internal {
         bool frozenWeth = _isFrozen(WETH);
 
@@ -180,6 +204,10 @@ contract IntegrationTestsBase is Test {
         ( ,,,,,,,,, isFrozen ) = dataProvider.getReserveConfigurationData(asset);
     }
 
+    function _isPaused(address asset) internal view returns (bool isPaused) {
+        return dataProvider.getPaused(asset);
+    }
+
     function _borrowingEnabled(address asset) internal view returns (bool borrowingEnabled) {
         ( ,,,,,, borrowingEnabled,,, ) = dataProvider.getReserveConfigurationData(asset);
     }
@@ -196,133 +224,95 @@ contract IntegrationTestsBase is Test {
 
 }
 
-contract FreezeSingleAssetSpellFailures is IntegrationTestsBase {
+abstract contract ExecuteOnceSpellTests is IntegrationTestsBase {
 
-    FreezeSingleAssetSpell freezeAssetSpell;
+    IExecuteOnceSpell spell;
+    bool isPauseSpell;
+    string contractName;
 
-    function setUp() public override {
-        super.setUp();
-        freezeAssetSpell = new FreezeSingleAssetSpell(address(freezer), WETH);
+    function _vote() internal {
+        _vote(address(spell));
+    }
+
+    function _vote(address _spell) internal {
+        uint256 amount = 1_000_000 ether;
+
+        deal(MKR, mkrWhale, amount);
+
+        vm.startPrank(mkrWhale);
+        IERC20(MKR).approve(AUTHORITY, amount);
+        authority.lock(amount);
+
+        address[] memory slate = new address[](1);
+        slate[0] = _spell;
+        authority.vote(slate);
+
+        vm.roll(block.number + 1);
+
+        authority.lift(_spell);
+
+        vm.stopPrank();
+
+        assertTrue(authority.hat() == _spell);
     }
 
     function test_cannotCallWithoutHat() external {
-        assertTrue(authority.hat() != address(freezeAssetSpell));
+        assertTrue(authority.hat() != address(spell));
         assertTrue(
             !authority.canCall(
-                address(freezeAssetSpell),
+                address(spell),
                 address(freezer),
                 freezer.freezeMarket.selector
             )
         );
 
         vm.expectRevert("SparkLendFreezerMom/not-authorized");
-        freezeAssetSpell.execute();
+        spell.execute();
     }
 
     function test_cannotCallWithoutRoleSetup() external {
-        _vote(address(freezeAssetSpell));
+        _vote();
 
-        assertTrue(authority.hat() == address(freezeAssetSpell));
+        assertTrue(authority.hat() == address(spell));
         assertTrue(
             authority.canCall(
-                address(freezeAssetSpell),
+                address(spell),
                 address(freezer),
                 freezer.freezeMarket.selector
             )
         );
 
-        vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
-        freezeAssetSpell.execute();
+        if (isPauseSpell) vm.expectRevert(bytes("3"));  // CALLER_NOT_POOL_OR_EMERGENCY_ADMIN
+        else vm.expectRevert(bytes("4"));               // CALLER_NOT_RISK_OR_POOL_ADMIN
+        spell.execute();
     }
 
     function test_cannotCallTwice() external {
         vm.prank(SPARK_PROXY);
-        aclManager.addRiskAdmin(address(freezer));
+        if (isPauseSpell) aclManager.addEmergencyAdmin(address(freezer));
+        else aclManager.addRiskAdmin(address(freezer));
 
-        _vote(address(freezeAssetSpell));
+        _vote();
 
-        assertTrue(authority.hat() == address(freezeAssetSpell));
+        assertTrue(authority.hat() == address(spell));
         assertTrue(
             authority.canCall(
-                address(freezeAssetSpell),
+                address(spell),
                 address(freezer),
                 freezer.freezeMarket.selector
             )
         );
 
         vm.startPrank(randomUser);  // Demonstrate no ACL in spell
-        freezeAssetSpell.execute();
+        spell.execute();
 
-        vm.expectRevert("FreezeSingleAssetSpell/already-executed");
-        freezeAssetSpell.execute();
+        vm.expectRevert(bytes(string.concat(contractName, "/already-executed")));
+        spell.execute();
     }
 
 }
 
-contract FreezeAllAssetsSpellFailures is IntegrationTestsBase {
-
-    FreezeAllAssetsSpell freezeAllAssetsSpell;
-
-    function setUp() public override {
-        super.setUp();
-        freezeAllAssetsSpell = new FreezeAllAssetsSpell(address(freezer));
-    }
-
-    function test_cannotCallWithoutHat() external {
-        assertTrue(authority.hat() != address(freezeAllAssetsSpell));
-        assertTrue(
-            !authority.canCall(
-                address(freezeAllAssetsSpell),
-                address(freezer),
-                freezer.freezeAllMarkets.selector
-            )
-        );
-
-        vm.expectRevert("SparkLendFreezerMom/not-authorized");
-        freezeAllAssetsSpell.execute();
-    }
-
-    function test_cannotCallWithoutRoleSetup() external {
-        _vote(address(freezeAllAssetsSpell));
-
-        assertTrue(authority.hat() == address(freezeAllAssetsSpell));
-        assertTrue(
-            authority.canCall(
-                address(freezeAllAssetsSpell),
-                address(freezer),
-                freezer.freezeAllMarkets.selector
-            )
-        );
-
-        vm.expectRevert(bytes("4"));  // CALLER_NOT_RISK_OR_POOL_ADMIN
-        freezeAllAssetsSpell.execute();
-    }
-
-    function test_cannotCallTwice() external {
-        vm.prank(SPARK_PROXY);
-        aclManager.addRiskAdmin(address(freezer));
-
-        _vote(address(freezeAllAssetsSpell));
-
-        assertTrue(authority.hat() == address(freezeAllAssetsSpell));
-        assertTrue(
-            authority.canCall(
-                address(freezeAllAssetsSpell),
-                address(freezer),
-                freezer.freezeMarket.selector
-            )
-        );
-
-        vm.startPrank(randomUser);  // Demonstrate no ACL in spell
-        freezeAllAssetsSpell.execute();
-
-        vm.expectRevert("FreezeAllAssetsSpell/already-executed");
-        freezeAllAssetsSpell.execute();
-    }
-
-}
-
-contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
+contract FreezeSingleAssetSpellTest is ExecuteOnceSpellTests {
 
     using SafeERC20 for IERC20;
 
@@ -330,11 +320,17 @@ contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
 
     function setUp() public override {
         super.setUp();
-        vm.prank(SPARK_PROXY);
-        aclManager.addRiskAdmin(address(freezer));
+
+        // For the revert testing
+        spell = new FreezeSingleAssetSpell(address(freezer), WETH);
+        isPauseSpell = false;
+        contractName = "FreezeSingleAssetSpell";
     }
 
     function test_freezeAssetSpell_allAssets() external {
+        vm.prank(SPARK_PROXY);
+        aclManager.addRiskAdmin(address(freezer));
+
         address[] memory reserves = pool.getReservesList();
 
         assertEq(reserves.length, 9);
@@ -370,7 +366,7 @@ contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
             poolConfig.setBorrowCap(asset, 0);
             vm.stopPrank();
 
-            _checkUserActionsUnfrozen(
+            _checkAllUserActionsAvailable(
                 asset,
                 supplyAmount,
                 withdrawAmount,
@@ -396,7 +392,7 @@ contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
             vm.prank(SPARK_PROXY);
             poolConfig.setReserveFreeze(asset, false);
 
-            _checkUserActionsUnfrozen(
+            _checkAllUserActionsAvailable(
                 asset,
                 supplyAmount,
                 withdrawAmount,
@@ -410,7 +406,7 @@ contract FreezeSingleAssetSpellTest is IntegrationTestsBase {
 
 }
 
-contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
+contract FreezeAllAssetsSpellTest is ExecuteOnceSpellTests {
 
     using SafeERC20 for IERC20;
 
@@ -418,11 +414,16 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
 
     function setUp() public override {
         super.setUp();
-        vm.prank(SPARK_PROXY);
-        aclManager.addRiskAdmin(address(freezer));
+
+        spell = new FreezeAllAssetsSpell(address(freezer));
+        isPauseSpell = false;
+        contractName = "FreezeAllAssetsSpell";
     }
 
     function test_freezeAllAssetsSpell() external {
+        vm.prank(SPARK_PROXY);
+        aclManager.addRiskAdmin(address(freezer));
+
         address[] memory reserves = pool.getReservesList();
 
         assertEq(reserves.length, 9);
@@ -432,10 +433,8 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
         uint256 borrowAmount   = 2;
         uint256 repayAmount    = 1;
 
-        address freezeAllAssetsSpell = address(new FreezeAllAssetsSpell(address(freezer)));
-
         // Setup spell
-        _vote(freezeAllAssetsSpell);
+        _vote();
 
         // Check that protocol is working as expected before spell for each asset
         for (uint256 i = 0; i < reserves.length; i++) {
@@ -454,7 +453,7 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
             poolConfig.setBorrowCap(asset, 0);
             vm.stopPrank();
 
-            _checkUserActionsUnfrozen(
+            _checkAllUserActionsAvailable(
                 asset,
                 supplyAmount * 10 ** decimals,
                 withdrawAmount * 10 ** decimals,
@@ -465,20 +464,19 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
 
         assertEq(untestedReserves.length, 0);
 
-        assertEq(FreezeAllAssetsSpell(freezeAllAssetsSpell).executed(), false);
+        assertEq(spell.executed(), false);
 
         // Freeze all assets in the protocol
         vm.prank(randomUser);  // Demonstrate no ACL in spell
-        FreezeAllAssetsSpell(freezeAllAssetsSpell).execute();
+        spell.execute();
 
-        assertEq(FreezeAllAssetsSpell(freezeAllAssetsSpell).executed(), true);
+        assertEq(spell.executed(), true);
 
         // Check that protocol is working as expected after the freeze spell for all assets
         for (uint256 i = 0; i < reserves.length; i++) {
             address asset    = reserves[i];
             uint256 decimals = IERC20(asset).decimals();
 
-            // Check all assets, including unfrozen ones from start
             _checkUserActionsFrozen(
                 asset,
                 supplyAmount * 10 ** decimals,
@@ -488,7 +486,7 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
             );
         }
 
-        // Undo all freezes, including WBTC and make sure that protocol is back to working
+        // Undo all freezes and make sure that protocol is back to working
         // as expected
         for (uint256 i = 0; i < reserves.length; i++) {
             address asset    = reserves[i];
@@ -497,7 +495,207 @@ contract FreezeAllAssetsSpellTest is IntegrationTestsBase {
             vm.prank(SPARK_PROXY);
             poolConfig.setReserveFreeze(asset, false);
 
-            _checkUserActionsUnfrozen(
+            _checkAllUserActionsAvailable(
+                asset,
+                supplyAmount * 10 ** decimals,
+                withdrawAmount * 10 ** decimals,
+                borrowAmount * 10 ** decimals,
+                repayAmount * 10 ** decimals
+            );
+        }
+    }
+
+}
+
+contract PauseSingleAssetSpellTest is ExecuteOnceSpellTests {
+
+    using SafeERC20 for IERC20;
+
+    address[] public untestedReserves;
+
+    function setUp() public override {
+        super.setUp();
+
+        // For the revert testing
+        spell = new PauseSingleAssetSpell(address(freezer), WETH);
+        isPauseSpell = true;
+        contractName = "PauseSingleAssetSpell";
+    }
+
+    function test_pauseAssetSpell_allAssets() external {
+        vm.prank(SPARK_PROXY);
+        aclManager.addEmergencyAdmin(address(freezer));
+
+        address[] memory reserves = pool.getReservesList();
+
+        assertEq(reserves.length, 9);
+
+        for (uint256 i = 0; i < reserves.length; i++) {
+            address asset = reserves[i];
+
+            // If the asset is paused on mainnet, skip the test
+            if (_isPaused(asset)) {
+                untestedReserves.push(asset);
+                continue;
+            }
+
+            assertEq(untestedReserves.length, 0);
+
+            uint256 decimals = IERC20(asset).decimals();
+
+            uint256 supplyAmount   = 1_000 * 10 ** decimals;
+            uint256 withdrawAmount = 1 * 10 ** decimals;
+            uint256 borrowAmount   = 2 * 10 ** decimals;
+            uint256 repayAmount    = 1 * 10 ** decimals;
+
+            uint256 snapshot = vm.snapshot();
+
+            address pauseAssetSpell
+                = address(new PauseSingleAssetSpell(address(freezer), asset));
+
+            // Setup spell, max out supply caps so that they aren't hit during test
+            _vote(pauseAssetSpell);
+
+            vm.startPrank(SPARK_PROXY);
+            poolConfig.setSupplyCap(asset, 0);
+            poolConfig.setBorrowCap(asset, 0);
+            vm.stopPrank();
+
+            _checkAllUserActionsAvailable(
+                asset,
+                supplyAmount,
+                withdrawAmount,
+                borrowAmount,
+                repayAmount
+            );
+
+            assertEq(PauseSingleAssetSpell(pauseAssetSpell).executed(), false);
+
+            vm.prank(randomUser);  // Demonstrate no ACL in spell
+            PauseSingleAssetSpell(pauseAssetSpell).execute();
+
+            assertEq(PauseSingleAssetSpell(pauseAssetSpell).executed(), true);
+
+            _checkUserActionsPaused(
+                asset,
+                supplyAmount,
+                withdrawAmount,
+                borrowAmount,
+                repayAmount
+            );
+
+            vm.prank(SPARK_PROXY);
+            poolConfig.setReservePause(asset, false);
+
+            _checkAllUserActionsAvailable(
+                asset,
+                supplyAmount,
+                withdrawAmount,
+                borrowAmount,
+                repayAmount
+            );
+
+            vm.revertTo(snapshot);
+        }
+    }
+
+}
+
+contract PauseAllAssetsSpellTest is ExecuteOnceSpellTests {
+
+    using SafeERC20 for IERC20;
+
+    address[] public untestedReserves;
+
+    function setUp() public override {
+        super.setUp();
+
+        spell = new PauseAllAssetsSpell(address(freezer));
+        isPauseSpell = true;
+        contractName = "PauseAllAssetsSpell";
+    }
+
+    function test_pauseAllAssetsSpell() external {
+        vm.prank(SPARK_PROXY);
+        aclManager.addEmergencyAdmin(address(freezer));
+
+        address[] memory reserves = pool.getReservesList();
+
+        assertEq(reserves.length, 9);
+
+        uint256 supplyAmount   = 1_000;
+        uint256 withdrawAmount = 1;
+        uint256 borrowAmount   = 2;
+        uint256 repayAmount    = 1;
+
+        // Setup spell
+        _vote();
+
+        // Check that protocol is working as expected before spell for each asset
+        for (uint256 i = 0; i < reserves.length; i++) {
+            address asset    = reserves[i];
+            uint256 decimals = IERC20(asset).decimals();
+
+            // If the asset is already paused on mainnet, skip the test
+            if (_isPaused(asset)) {
+                untestedReserves.push(asset);
+                continue;
+            }
+
+            // Max out supply caps for this asset so that they aren't hit during test
+            vm.startPrank(SPARK_PROXY);
+            poolConfig.setSupplyCap(asset, 0);
+            poolConfig.setBorrowCap(asset, 0);
+            vm.stopPrank();
+
+            _checkAllUserActionsAvailable(
+                asset,
+                supplyAmount * 10 ** decimals,
+                withdrawAmount * 10 ** decimals,
+                borrowAmount * 10 ** decimals,
+                repayAmount * 10 ** decimals
+            );
+        }
+
+        assertEq(untestedReserves.length, 0);
+
+        assertEq(spell.executed(), false);
+
+        // Pause all assets in the protocol
+        vm.prank(randomUser);  // Demonstrate no ACL in spell
+        spell.execute();
+
+        assertEq(spell.executed(), true);
+
+        // Check that protocol is working as expected after the pause spell for all assets
+        for (uint256 i = 0; i < reserves.length; i++) {
+            address asset    = reserves[i];
+            uint256 decimals = IERC20(asset).decimals();
+
+            _checkUserActionsPaused(
+                asset,
+                supplyAmount * 10 ** decimals,
+                withdrawAmount * 10 ** decimals,
+                borrowAmount * 10 ** decimals,
+                repayAmount * 10 ** decimals
+            );
+        }
+
+        // Undo all pauses and make sure that protocol is back to working
+        // as expected
+        for (uint256 i = 0; i < reserves.length; i++) {
+            address asset    = reserves[i];
+
+            vm.prank(SPARK_PROXY);
+            poolConfig.setReservePause(asset, false);
+        }
+
+        // Need to unpause all first before checking that protocol is working
+        for (uint256 i = 0; i < reserves.length; i++) {
+            address asset    = reserves[i];
+            uint256 decimals = IERC20(asset).decimals();
+
+            _checkAllUserActionsAvailable(
                 asset,
                 supplyAmount * 10 ** decimals,
                 withdrawAmount * 10 ** decimals,
