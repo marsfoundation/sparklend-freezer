@@ -45,6 +45,7 @@ contract IntegrationTestsBase is Test {
 
     address mkrWhale   = makeAddr("mkrWhale");
     address randomUser = makeAddr("randomUser");
+    address multisig   = makeAddr("multisig");
 
     IAuthorityLike    authority    = IAuthorityLike(AUTHORITY);
     IACLManager       aclManager   = IACLManager(ACL_MANAGER);
@@ -61,6 +62,8 @@ contract IntegrationTestsBase is Test {
 
         freezer.setAuthority(AUTHORITY);
         freezer.setOwner(PAUSE_PROXY);
+        vm.prank(PAUSE_PROXY);
+        freezer.rely(multisig);
     }
 
     // NOTE: For all checks, not checking pool.swapBorrowRateMode() since stable rate
@@ -702,6 +705,93 @@ contract PauseAllAssetsSpellTest is ExecuteOnceSpellTests {
                 borrowAmount * 10 ** decimals,
                 repayAmount * 10 ** decimals
             );
+        }
+    }
+
+}
+
+contract MultisigTest is IntegrationTestsBase {
+
+    function setUp() public override {
+        super.setUp();
+
+        vm.startPrank(SPARK_PROXY);
+
+        aclManager.addRiskAdmin(address(freezer));
+        aclManager.addEmergencyAdmin(address(freezer));
+
+        vm.stopPrank();
+    }
+
+    function test_freezeSingleAsset() public {
+        assertEq(_isFrozen(WETH), false);
+        
+        vm.prank(multisig);
+        freezer.freezeMarket(WETH, true);
+
+        assertEq(_isFrozen(WETH), true);
+        
+        vm.prank(multisig);
+        freezer.freezeMarket(WETH, false);
+
+        assertEq(_isFrozen(WETH), false);
+    }
+
+    function test_freezeAllAssets() public {
+        address[] memory reserves = pool.getReservesList();
+
+        for (uint256 i = 0; i < reserves.length; i++) {
+            assertEq(_isFrozen(reserves[i]), false);
+        }
+        
+        vm.prank(multisig);
+        freezer.freezeAllMarkets(true);
+
+        for (uint256 i = 0; i < reserves.length; i++) {
+            assertEq(_isFrozen(reserves[i]), true);
+        }
+        
+        vm.prank(multisig);
+        freezer.freezeAllMarkets(false);
+
+        for (uint256 i = 0; i < reserves.length; i++) {
+            assertEq(_isFrozen(reserves[i]), false);
+        }
+    }
+
+    function test_pauseSingleAsset() public {
+        assertEq(_isPaused(WETH), false);
+        
+        vm.prank(multisig);
+        freezer.pauseMarket(WETH, true);
+
+        assertEq(_isPaused(WETH), true);
+        
+        vm.prank(multisig);
+        freezer.pauseMarket(WETH, false);
+
+        assertEq(_isPaused(WETH), false);
+    }
+
+    function test_pauseAllAssets() public {
+        address[] memory reserves = pool.getReservesList();
+
+        for (uint256 i = 0; i < reserves.length; i++) {
+            assertEq(_isPaused(reserves[i]), false);
+        }
+        
+        vm.prank(multisig);
+        freezer.pauseAllMarkets(true);
+
+        for (uint256 i = 0; i < reserves.length; i++) {
+            assertEq(_isPaused(reserves[i]), true);
+        }
+        
+        vm.prank(multisig);
+        freezer.pauseAllMarkets(false);
+
+        for (uint256 i = 0; i < reserves.length; i++) {
+            assertEq(_isPaused(reserves[i]), false);
         }
     }
 
