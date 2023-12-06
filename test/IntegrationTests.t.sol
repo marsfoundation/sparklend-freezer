@@ -304,10 +304,6 @@ abstract contract ExecuteOnceSpellTests is IntegrationTestsBase {
     }
 
     function test_cannotCallTwice() external {
-        vm.prank(SPARK_PROXY);
-        if (isPauseSpell) aclManager.addEmergencyAdmin(address(freezerMom));
-        else aclManager.addRiskAdmin(address(freezerMom));
-
         _vote();
 
         assertTrue(authority.hat() == address(spell));
