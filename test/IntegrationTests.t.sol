@@ -232,6 +232,15 @@ abstract contract ExecuteOnceSpellTests is IntegrationTestsBase {
     bool isPauseSpell;
     string contractName;
 
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.startPrank(SPARK_PROXY);
+        aclManager.addEmergencyAdmin(address(freezerMom));
+        aclManager.addRiskAdmin(address(freezerMom));
+        vm.stopPrank();
+    }
+
     function _vote() internal {
         _vote(address(spell));
     }
@@ -273,6 +282,11 @@ abstract contract ExecuteOnceSpellTests is IntegrationTestsBase {
     }
 
     function test_cannotCallWithoutRoleSetup() external {
+        vm.startPrank(SPARK_PROXY);
+        aclManager.removeEmergencyAdmin(address(freezerMom));
+        aclManager.removeRiskAdmin(address(freezerMom));
+        vm.stopPrank();
+
         _vote();
 
         assertTrue(authority.hat() == address(spell));
@@ -330,9 +344,6 @@ contract FreezeSingleAssetSpellTest is ExecuteOnceSpellTests {
     }
 
     function test_freezeAssetSpell_allAssets() external {
-        vm.prank(SPARK_PROXY);
-        aclManager.addRiskAdmin(address(freezerMom));
-
         address[] memory reserves = pool.getReservesList();
 
         assertEq(reserves.length, 9);
@@ -423,9 +434,6 @@ contract FreezeAllAssetsSpellTest is ExecuteOnceSpellTests {
     }
 
     function test_freezeAllAssetsSpell() external {
-        vm.prank(SPARK_PROXY);
-        aclManager.addRiskAdmin(address(freezerMom));
-
         address[] memory reserves = pool.getReservesList();
 
         assertEq(reserves.length, 9);
@@ -525,9 +533,6 @@ contract PauseSingleAssetSpellTest is ExecuteOnceSpellTests {
     }
 
     function test_pauseAssetSpell_allAssets() external {
-        vm.prank(SPARK_PROXY);
-        aclManager.addEmergencyAdmin(address(freezerMom));
-
         address[] memory reserves = pool.getReservesList();
 
         assertEq(reserves.length, 9);
@@ -618,9 +623,6 @@ contract PauseAllAssetsSpellTest is ExecuteOnceSpellTests {
     }
 
     function test_pauseAllAssetsSpell() external {
-        vm.prank(SPARK_PROXY);
-        aclManager.addEmergencyAdmin(address(freezerMom));
-
         address[] memory reserves = pool.getReservesList();
 
         assertEq(reserves.length, 9);
