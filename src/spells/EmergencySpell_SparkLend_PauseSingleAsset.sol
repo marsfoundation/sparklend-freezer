@@ -11,8 +11,8 @@ contract EmergencySpell_SparkLend_PauseSingleAsset is IExecuteOnceSpell {
 
     bool public override executed;
 
-    constructor(address sparklendFreezerMom_, address reserve_) {
-        sparkLendFreezerMom = sparklendFreezerMom_;
+    constructor(address sparkLendFreezerMom_, address reserve_) {
+        sparkLendFreezerMom = sparkLendFreezerMom_;
         reserve             = reserve_;
     }
 

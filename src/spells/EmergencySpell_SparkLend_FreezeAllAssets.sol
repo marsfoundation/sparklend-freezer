@@ -10,8 +10,8 @@ contract EmergencySpell_SparkLend_FreezeAllAssets is IExecuteOnceSpell {
 
     bool public override executed;
 
-    constructor(address sparklendFreezerMom_) {
-        sparkLendFreezerMom = sparklendFreezerMom_;
+    constructor(address sparkLendFreezerMom_) {
+        sparkLendFreezerMom = sparkLendFreezerMom_;
     }
 
     function execute() external override {

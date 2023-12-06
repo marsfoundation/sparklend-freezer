@@ -9,7 +9,6 @@ import { IERC20 }    from "lib/erc20-helpers/src/interfaces/IERC20.sol";
 import { IExecuteOnceSpell }   from "src/interfaces/IExecuteOnceSpell.sol";
 import { SparkLendFreezerMom } from "src/SparkLendFreezerMom.sol";
 
-
 import { EmergencySpell_SparkLend_FreezeSingleAsset as FreezeSingleAssetSpell }
     from "src/spells/EmergencySpell_SparkLend_FreezeSingleAsset.sol";
 
@@ -53,17 +52,17 @@ contract IntegrationTestsBase is Test {
     IPoolConfigurator poolConfig   = IPoolConfigurator(POOL_CONFIG);
     IPoolDataProvider dataProvider = IPoolDataProvider(DATA_PROVIDER);
 
-    SparkLendFreezerMom freezer;
+    SparkLendFreezerMom freezerMom;
 
     function setUp() public virtual {
         vm.createSelectFork(getChain('mainnet').rpcUrl, 18_706_418);
 
-        freezer = new SparkLendFreezerMom(POOL_CONFIG, POOL);
+        freezerMom = new SparkLendFreezerMom(POOL_CONFIG, POOL);
 
-        freezer.setAuthority(AUTHORITY);
-        freezer.setOwner(PAUSE_PROXY);
+        freezerMom.setAuthority(AUTHORITY);
+        freezerMom.setOwner(PAUSE_PROXY);
         vm.prank(PAUSE_PROXY);
-        freezer.rely(multisig);
+        freezerMom.rely(multisig);
     }
 
     // NOTE: For all checks, not checking pool.swapBorrowRateMode() since stable rate
@@ -264,8 +263,8 @@ abstract contract ExecuteOnceSpellTests is IntegrationTestsBase {
         assertTrue(
             !authority.canCall(
                 address(spell),
-                address(freezer),
-                freezer.freezeMarket.selector
+                address(freezerMom),
+                freezerMom.freezeMarket.selector
             )
         );
 
@@ -280,8 +279,8 @@ abstract contract ExecuteOnceSpellTests is IntegrationTestsBase {
         assertTrue(
             authority.canCall(
                 address(spell),
-                address(freezer),
-                freezer.freezeMarket.selector
+                address(freezerMom),
+                freezerMom.freezeMarket.selector
             )
         );
 
@@ -292,8 +291,8 @@ abstract contract ExecuteOnceSpellTests is IntegrationTestsBase {
 
     function test_cannotCallTwice() external {
         vm.prank(SPARK_PROXY);
-        if (isPauseSpell) aclManager.addEmergencyAdmin(address(freezer));
-        else aclManager.addRiskAdmin(address(freezer));
+        if (isPauseSpell) aclManager.addEmergencyAdmin(address(freezerMom));
+        else aclManager.addRiskAdmin(address(freezerMom));
 
         _vote();
 
@@ -301,8 +300,8 @@ abstract contract ExecuteOnceSpellTests is IntegrationTestsBase {
         assertTrue(
             authority.canCall(
                 address(spell),
-                address(freezer),
-                freezer.freezeMarket.selector
+                address(freezerMom),
+                freezerMom.freezeMarket.selector
             )
         );
 
@@ -325,14 +324,14 @@ contract FreezeSingleAssetSpellTest is ExecuteOnceSpellTests {
         super.setUp();
 
         // For the revert testing
-        spell = new FreezeSingleAssetSpell(address(freezer), WETH);
+        spell        = new FreezeSingleAssetSpell(address(freezerMom), WETH);
         isPauseSpell = false;
         contractName = "FreezeSingleAssetSpell";
     }
 
     function test_freezeAssetSpell_allAssets() external {
         vm.prank(SPARK_PROXY);
-        aclManager.addRiskAdmin(address(freezer));
+        aclManager.addRiskAdmin(address(freezerMom));
 
         address[] memory reserves = pool.getReservesList();
 
@@ -359,7 +358,7 @@ contract FreezeSingleAssetSpellTest is ExecuteOnceSpellTests {
             uint256 snapshot = vm.snapshot();
 
             address freezeAssetSpell
-                = address(new FreezeSingleAssetSpell(address(freezer), asset));
+                = address(new FreezeSingleAssetSpell(address(freezerMom), asset));
 
             // Setup spell, max out supply caps so that they aren't hit during test
             _vote(freezeAssetSpell);
@@ -418,14 +417,14 @@ contract FreezeAllAssetsSpellTest is ExecuteOnceSpellTests {
     function setUp() public override {
         super.setUp();
 
-        spell = new FreezeAllAssetsSpell(address(freezer));
+        spell        = new FreezeAllAssetsSpell(address(freezerMom));
         isPauseSpell = false;
         contractName = "FreezeAllAssetsSpell";
     }
 
     function test_freezeAllAssetsSpell() external {
         vm.prank(SPARK_PROXY);
-        aclManager.addRiskAdmin(address(freezer));
+        aclManager.addRiskAdmin(address(freezerMom));
 
         address[] memory reserves = pool.getReservesList();
 
@@ -520,14 +519,14 @@ contract PauseSingleAssetSpellTest is ExecuteOnceSpellTests {
         super.setUp();
 
         // For the revert testing
-        spell = new PauseSingleAssetSpell(address(freezer), WETH);
+        spell        = new PauseSingleAssetSpell(address(freezerMom), WETH);
         isPauseSpell = true;
         contractName = "PauseSingleAssetSpell";
     }
 
     function test_pauseAssetSpell_allAssets() external {
         vm.prank(SPARK_PROXY);
-        aclManager.addEmergencyAdmin(address(freezer));
+        aclManager.addEmergencyAdmin(address(freezerMom));
 
         address[] memory reserves = pool.getReservesList();
 
@@ -554,7 +553,7 @@ contract PauseSingleAssetSpellTest is ExecuteOnceSpellTests {
             uint256 snapshot = vm.snapshot();
 
             address pauseAssetSpell
-                = address(new PauseSingleAssetSpell(address(freezer), asset));
+                = address(new PauseSingleAssetSpell(address(freezerMom), asset));
 
             // Setup spell, max out supply caps so that they aren't hit during test
             _vote(pauseAssetSpell);
@@ -613,14 +612,14 @@ contract PauseAllAssetsSpellTest is ExecuteOnceSpellTests {
     function setUp() public override {
         super.setUp();
 
-        spell = new PauseAllAssetsSpell(address(freezer));
+        spell        = new PauseAllAssetsSpell(address(freezerMom));
         isPauseSpell = true;
         contractName = "PauseAllAssetsSpell";
     }
 
     function test_pauseAllAssetsSpell() external {
         vm.prank(SPARK_PROXY);
-        aclManager.addEmergencyAdmin(address(freezer));
+        aclManager.addEmergencyAdmin(address(freezerMom));
 
         address[] memory reserves = pool.getReservesList();
 
@@ -687,10 +686,8 @@ contract PauseAllAssetsSpellTest is ExecuteOnceSpellTests {
         // Undo all pauses and make sure that protocol is back to working
         // as expected
         for (uint256 i = 0; i < reserves.length; i++) {
-            address asset    = reserves[i];
-
             vm.prank(SPARK_PROXY);
-            poolConfig.setReservePause(asset, false);
+            poolConfig.setReservePause(reserves[i], false);
         }
 
         // Need to unpause all first before checking that protocol is working
@@ -717,8 +714,8 @@ contract MultisigTest is IntegrationTestsBase {
 
         vm.startPrank(SPARK_PROXY);
 
-        aclManager.addRiskAdmin(address(freezer));
-        aclManager.addEmergencyAdmin(address(freezer));
+        aclManager.addRiskAdmin(address(freezerMom));
+        aclManager.addEmergencyAdmin(address(freezerMom));
 
         vm.stopPrank();
     }
@@ -727,12 +724,12 @@ contract MultisigTest is IntegrationTestsBase {
         assertEq(_isFrozen(WETH), false);
         
         vm.prank(multisig);
-        freezer.freezeMarket(WETH, true);
+        freezerMom.freezeMarket(WETH, true);
 
         assertEq(_isFrozen(WETH), true);
         
         vm.prank(multisig);
-        freezer.freezeMarket(WETH, false);
+        freezerMom.freezeMarket(WETH, false);
 
         assertEq(_isFrozen(WETH), false);
     }
@@ -745,14 +742,14 @@ contract MultisigTest is IntegrationTestsBase {
         }
         
         vm.prank(multisig);
-        freezer.freezeAllMarkets(true);
+        freezerMom.freezeAllMarkets(true);
 
         for (uint256 i = 0; i < reserves.length; i++) {
             assertEq(_isFrozen(reserves[i]), true);
         }
         
         vm.prank(multisig);
-        freezer.freezeAllMarkets(false);
+        freezerMom.freezeAllMarkets(false);
 
         for (uint256 i = 0; i < reserves.length; i++) {
             assertEq(_isFrozen(reserves[i]), false);
@@ -763,12 +760,12 @@ contract MultisigTest is IntegrationTestsBase {
         assertEq(_isPaused(WETH), false);
         
         vm.prank(multisig);
-        freezer.pauseMarket(WETH, true);
+        freezerMom.pauseMarket(WETH, true);
 
         assertEq(_isPaused(WETH), true);
         
         vm.prank(multisig);
-        freezer.pauseMarket(WETH, false);
+        freezerMom.pauseMarket(WETH, false);
 
         assertEq(_isPaused(WETH), false);
     }
@@ -781,14 +778,14 @@ contract MultisigTest is IntegrationTestsBase {
         }
         
         vm.prank(multisig);
-        freezer.pauseAllMarkets(true);
+        freezerMom.pauseAllMarkets(true);
 
         for (uint256 i = 0; i < reserves.length; i++) {
             assertEq(_isPaused(reserves[i]), true);
         }
         
         vm.prank(multisig);
-        freezer.pauseAllMarkets(false);
+        freezerMom.pauseAllMarkets(false);
 
         for (uint256 i = 0; i < reserves.length; i++) {
             assertEq(_isPaused(reserves[i]), false);
