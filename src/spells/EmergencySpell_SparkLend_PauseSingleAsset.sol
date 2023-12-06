@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import { IExecuteOnceSpell }    from "src/interfaces/IExecuteOnceSpell.sol";
 import { ISparkLendFreezerMom } from "src/interfaces/ISparkLendFreezerMom.sol";
 
-contract EmergencySpell_SparkLend_FreezeSingleAsset is IExecuteOnceSpell {
+contract EmergencySpell_SparkLend_PauseSingleAsset is IExecuteOnceSpell {
 
     address public immutable sparkLendFreezerMom;
     address public immutable reserve;
@@ -17,9 +17,9 @@ contract EmergencySpell_SparkLend_FreezeSingleAsset is IExecuteOnceSpell {
     }
 
     function execute() external override {
-        require(!executed, "FreezeSingleAssetSpell/already-executed");
+        require(!executed, "PauseSingleAssetSpell/already-executed");
         executed = true;
-        ISparkLendFreezerMom(sparkLendFreezerMom).freezeMarket(reserve, true);
+        ISparkLendFreezerMom(sparkLendFreezerMom).pauseMarket(reserve, true);
     }
 
 }

@@ -25,6 +25,8 @@ contract ConfiguratorMock {
 
     function setReserveFreeze(address asset, bool freeze) external {}
 
+    function setReservePause(address asset, bool pause) external {}
+
 }
 
 contract PoolMock {
