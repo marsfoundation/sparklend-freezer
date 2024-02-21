@@ -139,7 +139,7 @@ contract DenyTests is SparkLendFreezerMomUnitTestBase {
 
     function test_deny_authorized_spell() public {
         address authedContract = makeAddr("authedContract");
-        address caller = makeAddr("caller");
+        address caller         = makeAddr("caller");
 
         authority.__setCanCall(
             caller,

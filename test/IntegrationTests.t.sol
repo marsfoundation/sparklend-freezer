@@ -833,13 +833,14 @@ contract RemoveMultisigSpellTest is ExecuteOnceSpellTests {
 
         // Verify multisig can no longer freeze and unfreeze markets
         vm.startPrank(multisig);
-        assertEq(_isFrozen(WETH), false);
         vm.expectRevert("SparkLendFreezerMom/not-authorized");
         freezerMom.freezeMarket(WETH, true);
-        assertEq(_isFrozen(WETH), false);
         vm.expectRevert("SparkLendFreezerMom/not-authorized");
-        freezerMom.freezeMarket(WETH, false);
-        assertEq(_isFrozen(WETH), false);
+        freezerMom.pauseMarket(WETH, true);
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezerMom.freezeAllMarkets(true);
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezerMom.pauseAllMarkets(true);
         vm.stopPrank();
     }
 
