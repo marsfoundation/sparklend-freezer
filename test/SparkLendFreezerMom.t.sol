@@ -105,7 +105,7 @@ contract RelyTests is SparkLendFreezerMomUnitTestBase {
 contract DenyTests is SparkLendFreezerMomUnitTestBase {
 
     function test_deny_noAuth() public {
-        vm.expectRevert("SparkLendFreezerMom/only-owner");
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
         freezer.deny(makeAddr("authedContract"));
     }
 
@@ -118,6 +118,42 @@ contract DenyTests is SparkLendFreezerMomUnitTestBase {
         assertEq(freezer.wards(authedContract), 1);
 
         vm.prank(owner);
+        freezer.deny(authedContract);
+
+        assertEq(freezer.wards(authedContract), 0);
+    }
+
+    function test_deny_ward() public {
+        address authedContract = makeAddr("authedContract");
+
+        vm.prank(owner);
+        freezer.rely(authedContract);
+
+        assertEq(freezer.wards(authedContract), 1);
+
+        vm.prank(authedContract);
+        freezer.deny(authedContract);
+
+        assertEq(freezer.wards(authedContract), 0);
+    }
+
+    function test_deny_authorized_spell() public {
+        address authedContract = makeAddr("authedContract");
+        address caller         = makeAddr("caller");
+
+        authority.__setCanCall(
+            caller,
+            address(freezer),
+            freezer.deny.selector,
+            true
+        );
+
+        vm.prank(owner);
+        freezer.rely(authedContract);
+
+        assertEq(freezer.wards(authedContract), 1);
+
+        vm.prank(caller);
         freezer.deny(authedContract);
 
         assertEq(freezer.wards(authedContract), 0);

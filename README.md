@@ -30,6 +30,15 @@ A spell that can be set as the `hat` in the Chief to pauses all markets in Spark
 ### `src/spells/EmergencySpell_SparkLend_PauseSingleAsset.sol`
 A spell that can be set as the `hat` in the Chief to pause a specific market in SparkLend by calling `pauseMarket(reserve, true)` in `SparkLendFreezerMom`. A separate spell is needed for each market, with the reserve being declared in the constructor.
 
+### `src/spells/EmergencySpell_SparkLend_RemoveMultisig.sol`
+A spell that can be set as the `hat` in the Chief to remove a ward by calling `deny(multisig)` in `SparkLendFreezerMom`.
+
+## Expected Configuration
+
+It is important that the code be matched to a very specific setup to ensure all assumptions are valid. In particular, it is expected that the owner will be the Spark SubDAO Proxy (0x3300f198988e4C9C63F75dF86De36421f06af8c4), the authority will be the MCD Chief (0x0a3f6849f78076aefaDf113F5BED87720274dDC0) and there will at most 1 ward that is a SAFE multisig.
+
+This configuration is important because `deny` is set to only required `auth` parameters, so there are three ways to remove the multisig (multisig itself, remove multisig spell without GSM delay, and finally the Spark SubDAO Proxy). This ensures that MKR holders can override a decision made by the multisig (and de-auth it) without a GSM delay. Furthermore the SubDAO Proxy behind a delay can override any decision of a non-delay vote and the multisig (and de-auth both of them).
+
 ## Execution Flow Diagrams
 
 The below diagrams outlines the execution flow of freezing a single market in SparkLend for both token-based governance in MakerDAO and the emergency multisig, which will be added as a `ward` in the FreezerMom.

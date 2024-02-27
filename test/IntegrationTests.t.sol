@@ -21,6 +21,9 @@ import { EmergencySpell_SparkLend_PauseSingleAsset as PauseSingleAssetSpell }
 import { EmergencySpell_SparkLend_PauseAllAssets as PauseAllAssetsSpell }
     from "src/spells/EmergencySpell_SparkLend_PauseAllAssets.sol";
 
+import { EmergencySpell_SparkLend_RemoveMultisig as RemoveMultisigSpell }
+    from "src/spells/EmergencySpell_SparkLend_RemoveMultisig.sol";
+
 import { IACLManager }       from "lib/aave-v3-core/contracts/interfaces/IACLManager.sol";
 import { IPoolConfigurator } from "lib/aave-v3-core/contracts/interfaces/IPoolConfigurator.sol";
 import { IPoolDataProvider } from "lib/aave-v3-core/contracts/interfaces/IPoolDataProvider.sol";
@@ -229,17 +232,7 @@ contract IntegrationTestsBase is Test {
 abstract contract ExecuteOnceSpellTests is IntegrationTestsBase {
 
     IExecuteOnceSpell spell;
-    bool isPauseSpell;
     string contractName;
-
-    function setUp() public virtual override {
-        super.setUp();
-
-        vm.startPrank(SPARK_PROXY);
-        aclManager.addEmergencyAdmin(address(freezerMom));
-        aclManager.addRiskAdmin(address(freezerMom));
-        vm.stopPrank();
-    }
 
     function _vote() internal {
         _vote(address(spell));
@@ -281,6 +274,40 @@ abstract contract ExecuteOnceSpellTests is IntegrationTestsBase {
         spell.execute();
     }
 
+    function test_cannotCallTwice() external {
+        _vote();
+
+        assertTrue(authority.hat() == address(spell));
+        assertTrue(
+            authority.canCall(
+                address(spell),
+                address(freezerMom),
+                freezerMom.freezeMarket.selector
+            )
+        );
+
+        vm.startPrank(randomUser);  // Demonstrate no ACL in spell
+        spell.execute();
+
+        vm.expectRevert(bytes(string.concat(contractName, "/already-executed")));
+        spell.execute();
+    }
+
+}
+
+abstract contract FreezePauseSpellTests is ExecuteOnceSpellTests {
+
+    bool isPauseSpell;
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        vm.startPrank(SPARK_PROXY);
+        aclManager.addEmergencyAdmin(address(freezerMom));
+        aclManager.addRiskAdmin(address(freezerMom));
+        vm.stopPrank();
+    }
+
     function test_cannotCallWithoutRoleSetup() external {
         vm.startPrank(SPARK_PROXY);
         aclManager.removeEmergencyAdmin(address(freezerMom));
@@ -303,28 +330,9 @@ abstract contract ExecuteOnceSpellTests is IntegrationTestsBase {
         spell.execute();
     }
 
-    function test_cannotCallTwice() external {
-        _vote();
-
-        assertTrue(authority.hat() == address(spell));
-        assertTrue(
-            authority.canCall(
-                address(spell),
-                address(freezerMom),
-                freezerMom.freezeMarket.selector
-            )
-        );
-
-        vm.startPrank(randomUser);  // Demonstrate no ACL in spell
-        spell.execute();
-
-        vm.expectRevert(bytes(string.concat(contractName, "/already-executed")));
-        spell.execute();
-    }
-
 }
 
-contract FreezeSingleAssetSpellTest is ExecuteOnceSpellTests {
+contract FreezeSingleAssetSpellTest is FreezePauseSpellTests {
 
     using SafeERC20 for IERC20;
 
@@ -415,7 +423,7 @@ contract FreezeSingleAssetSpellTest is ExecuteOnceSpellTests {
 
 }
 
-contract FreezeAllAssetsSpellTest is ExecuteOnceSpellTests {
+contract FreezeAllAssetsSpellTest is FreezePauseSpellTests {
 
     using SafeERC20 for IERC20;
 
@@ -513,7 +521,7 @@ contract FreezeAllAssetsSpellTest is ExecuteOnceSpellTests {
 
 }
 
-contract PauseSingleAssetSpellTest is ExecuteOnceSpellTests {
+contract PauseSingleAssetSpellTest is FreezePauseSpellTests {
 
     using SafeERC20 for IERC20;
 
@@ -604,7 +612,7 @@ contract PauseSingleAssetSpellTest is ExecuteOnceSpellTests {
 
 }
 
-contract PauseAllAssetsSpellTest is ExecuteOnceSpellTests {
+contract PauseAllAssetsSpellTest is FreezePauseSpellTests {
 
     using SafeERC20 for IERC20;
 
@@ -788,6 +796,52 @@ contract MultisigTest is IntegrationTestsBase {
         for (uint256 i = 0; i < reserves.length; i++) {
             assertEq(_isPaused(reserves[i]), false);
         }
+    }
+
+}
+
+contract RemoveMultisigSpellTest is ExecuteOnceSpellTests {
+
+    function setUp() public override {
+        super.setUp();
+
+        // For the revert testing
+        spell        = new RemoveMultisigSpell(address(freezerMom), multisig);
+        contractName = "RemoveMultisigSpell";
+
+        vm.prank(SPARK_PROXY);
+        aclManager.addRiskAdmin(address(freezerMom));
+    }
+
+    function test_removeMultisigSpell_multisig() external {
+        assertEq(freezerMom.wards(multisig), 1);
+
+        // Verify multisig can freeze and unfreeze markets
+        vm.startPrank(multisig);
+        assertEq(_isFrozen(WETH), false);
+        freezerMom.freezeMarket(WETH, true);
+        assertEq(_isFrozen(WETH), true);
+        freezerMom.freezeMarket(WETH, false);
+        assertEq(_isFrozen(WETH), false);
+        vm.stopPrank();
+
+        _vote();
+        vm.prank(randomUser);  // Demonstrate no ACL in spell
+        spell.execute();
+
+        assertEq(freezerMom.wards(multisig), 0);
+
+        // Verify multisig can no longer freeze and unfreeze markets
+        vm.startPrank(multisig);
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezerMom.freezeMarket(WETH, true);
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezerMom.pauseMarket(WETH, true);
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezerMom.freezeAllMarkets(true);
+        vm.expectRevert("SparkLendFreezerMom/not-authorized");
+        freezerMom.pauseAllMarkets(true);
+        vm.stopPrank();
     }
 
 }

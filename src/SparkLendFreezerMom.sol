@@ -66,7 +66,7 @@ contract SparkLendFreezerMom is ISparkLendFreezerMom {
         emit Rely(usr);
     }
 
-    function deny(address usr) external override onlyOwner {
+    function deny(address usr) external override auth {
         wards[usr] = 0;
         emit Deny(usr);
     }
